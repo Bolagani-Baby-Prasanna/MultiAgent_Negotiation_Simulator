@@ -1,0 +1,826 @@
+// import { useState } from 'react'
+// import reactLogo from './assets/react.svg'
+// import viteLogo from './assets/vite.svg'
+// import heroImg from './assets/hero.png'
+// import './App.css'
+
+// function App() {
+//   const [count, setCount] = useState(0)
+
+//   return (
+//     <>
+//       <section id="center">
+//         <div className="hero">
+//           <img src={heroImg} className="base" width="170" height="179" alt="" />
+//           <img src={reactLogo} className="framework" alt="React logo" />
+//           <img src={viteLogo} className="vite" alt="Vite logo" />
+//         </div>
+//         <div>
+//           <h1>Get started</h1>
+//           <p>
+//             Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+//           </p>
+//         </div>
+//         <button
+//           type="button"
+//           className="counter"
+//           onClick={() => setCount((count) => count + 1)}
+//         >
+//           Count is {count}
+//         </button>
+//       </section>
+
+//       <div className="ticks"></div>
+
+//       <section id="next-steps">
+//         <div id="docs">
+//           <svg className="icon" role="presentation" aria-hidden="true">
+//             <use href="/icons.svg#documentation-icon"></use>
+//           </svg>
+//           <h2>Documentation</h2>
+//           <p>Your questions, answered</p>
+//           <ul>
+//             <li>
+//               <a href="https://vite.dev/" target="_blank">
+//                 <img className="logo" src={viteLogo} alt="" />
+//                 Explore Vite
+//               </a>
+//             </li>
+//             <li>
+//               <a href="https://react.dev/" target="_blank">
+//                 <img className="button-icon" src={reactLogo} alt="" />
+//                 Learn more
+//               </a>
+//             </li>
+//           </ul>
+//         </div>
+//         <div id="social">
+//           <svg className="icon" role="presentation" aria-hidden="true">
+//             <use href="/icons.svg#social-icon"></use>
+//           </svg>
+//           <h2>Connect with us</h2>
+//           <p>Join the Vite community</p>
+//           <ul>
+//             <li>
+//               <a href="https://github.com/vitejs/vite" target="_blank">
+//                 <svg
+//                   className="button-icon"
+//                   role="presentation"
+//                   aria-hidden="true"
+//                 >
+//                   <use href="/icons.svg#github-icon"></use>
+//                 </svg>
+//                 GitHub
+//               </a>
+//             </li>
+//             <li>
+//               <a href="https://chat.vite.dev/" target="_blank">
+//                 <svg
+//                   className="button-icon"
+//                   role="presentation"
+//                   aria-hidden="true"
+//                 >
+//                   <use href="/icons.svg#discord-icon"></use>
+//                 </svg>
+//                 Discord
+//               </a>
+//             </li>
+//             <li>
+//               <a href="https://x.com/vite_js" target="_blank">
+//                 <svg
+//                   className="button-icon"
+//                   role="presentation"
+//                   aria-hidden="true"
+//                 >
+//                   <use href="/icons.svg#x-icon"></use>
+//                 </svg>
+//                 X.com
+//               </a>
+//             </li>
+//             <li>
+//               <a href="https://bsky.app/profile/vite.dev" target="_blank">
+//                 <svg
+//                   className="button-icon"
+//                   role="presentation"
+//                   aria-hidden="true"
+//                 >
+//                   <use href="/icons.svg#bluesky-icon"></use>
+//                 </svg>
+//                 Bluesky
+//               </a>
+//             </li>
+//           </ul>
+//         </div>
+//       </section>
+
+//       <div className="ticks"></div>
+//       <section id="spacer"></section>
+//     </>
+//   )
+// }
+
+// export default App
+import { useState } from "react";
+import "./App.css";
+
+type Agent = {
+  name: string;
+  role: string;
+  focus: string;
+  icon: string;
+};
+
+const agents: Agent[] = [
+  {
+    name: "Client Agent",
+    role: "Client",
+    focus: "Budget, Scope, Deadline",
+    icon: "👤",
+  },
+  {
+    name: "Contractor Agent",
+    role: "Contractor",
+    focus: "Labor, Equipment, Schedule, Profit",
+    icon: "👷",
+  },
+  {
+    name: "Supplier Agent",
+    role: "Supplier",
+    focus: "Pricing, Inventory, Delivery",
+    icon: "🚚",
+  },
+  {
+    name: "Project Manager Agent",
+    role: "Project Manager",
+    focus: "Resources, Schedule, Risk",
+    icon: "📋",
+  },
+  {
+    name: "Finance Manager Agent",
+    role: "Finance Manager",
+    focus: "Budget, Cost Control, Planning",
+    icon: "💰",
+  },
+];
+
+const scenarios = [
+  "Material Shortage",
+  "Budget Overrun",
+  "Labor Shortage",
+  "Deadline Reduction",
+  "Scope Changes",
+  "Weather Delays",
+  "Equipment Breakdown",
+];
+
+function App() {
+  const [activePage, setActivePage] = useState("Dashboard");
+  const [selectedScenario, setSelectedScenario] = useState("Material Shortage");
+
+  return (
+    <div className="app">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="logo">
+          <div className="logo-mark">CN</div>
+          <div>
+            <h2>Construct<span>AI</span></h2>
+            <p>Negotiation Simulator</p>
+          </div>
+        </div>
+
+        <nav className="navigation">
+          <button
+            className={activePage === "Dashboard" ? "nav-item active" : "nav-item"}
+            onClick={() => setActivePage("Dashboard")}
+          >
+            <span>▦</span>
+            Dashboard
+          </button>
+
+          <button
+            className={activePage === "Scenarios" ? "nav-item active" : "nav-item"}
+            onClick={() => setActivePage("Scenarios")}
+          >
+            <span>▤</span>
+            Scenarios
+          </button>
+
+          <button
+            className={
+              activePage === "Negotiation Monitor"
+                ? "nav-item active"
+                : "nav-item"
+            }
+            onClick={() => setActivePage("Negotiation Monitor")}
+          >
+            <span>◉</span>
+            Negotiation Monitor
+          </button>
+
+          <button
+            className={
+              activePage === "Reports & Analytics"
+                ? "nav-item active"
+                : "nav-item"
+            }
+            onClick={() => setActivePage("Reports & Analytics")}
+          >
+            <span>▥</span>
+            Reports & Analytics
+          </button>
+
+          <button
+            className={activePage === "Settings" ? "nav-item active" : "nav-item"}
+            onClick={() => setActivePage("Settings")}
+          >
+            <span>⚙</span>
+            Settings
+          </button>
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="system-status">
+            <span className="status-dot"></span>
+            <div>
+              <strong>System Online</strong>
+              <small>All services operational</small>
+            </div>
+          </div>
+
+          <div className="user-profile">
+            <div className="avatar">PM</div>
+            <div>
+              <strong>Project Manager</strong>
+              <small>Administrator</small>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="main-content">
+        <header className="topbar">
+          <div>
+            <h1>{activePage}</h1>
+            <p>Multi-Agent Construction Project Resource Negotiation</p>
+          </div>
+
+          <div className="topbar-actions">
+            <div className="connection">
+              <span className="status-dot"></span>
+              System Connected
+            </div>
+
+            <button className="notification">🔔</button>
+            <div className="top-avatar">PM</div>
+          </div>
+        </header>
+
+        {activePage === "Dashboard" && (
+          <Dashboard
+            selectedScenario={selectedScenario}
+            setSelectedScenario={setSelectedScenario}
+          />
+        )}
+
+        {activePage === "Scenarios" && (
+          <Scenarios
+            selectedScenario={selectedScenario}
+            setSelectedScenario={setSelectedScenario}
+          />
+        )}
+
+        {activePage === "Negotiation Monitor" && <NegotiationMonitor />}
+
+        {activePage === "Reports & Analytics" && <Reports />}
+
+        {activePage === "Settings" && <Settings />}
+      </main>
+    </div>
+  );
+}
+
+function Dashboard({
+  selectedScenario,
+  setSelectedScenario,
+}: {
+  selectedScenario: string;
+  setSelectedScenario: (scenario: string) => void;
+}) {
+  return (
+    <div className="page-content">
+      <section className="welcome-section">
+        <div>
+          <h2>Project Overview</h2>
+          <p>
+            Monitor construction resources, stakeholder agents and active
+            negotiations.
+          </p>
+        </div>
+
+        <button className="primary-button">+ New Scenario</button>
+      </section>
+
+      {/* Statistics */}
+      <section className="stats-grid">
+        <StatCard
+          title="Active Negotiations"
+          value="3"
+          description="Currently running"
+          icon="🤝"
+        />
+
+        <StatCard
+          title="Available Budget"
+          value="₹2.3 Cr"
+          description="Current allocation"
+          icon="₹"
+        />
+
+        <StatCard
+          title="Resources"
+          value="18"
+          description="Being monitored"
+          icon="▣"
+        />
+
+        <StatCard
+          title="Agreements"
+          value="12"
+          description="Successfully completed"
+          icon="✓"
+        />
+      </section>
+
+      <div className="dashboard-grid">
+        {/* Agents */}
+        <section className="panel agents-panel">
+          <div className="panel-header">
+            <div>
+              <h3>Active Agents</h3>
+              <p>Construction stakeholders</p>
+            </div>
+
+            <span className="count-badge">5 Agents</span>
+          </div>
+
+          <div className="agent-list">
+            {agents.map((agent) => (
+              <div className="agent-card" key={agent.name}>
+                <div className="agent-icon">{agent.icon}</div>
+
+                <div className="agent-information">
+                  <strong>{agent.name}</strong>
+                  <span>{agent.role}</span>
+                  <small>{agent.focus}</small>
+                </div>
+
+                <span className="agent-online">
+                  <i></i>
+                  Active
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Scenario */}
+        <section className="panel scenario-panel">
+          <div className="panel-header">
+            <div>
+              <h3>Scenario Library</h3>
+              <p>Select a construction problem</p>
+            </div>
+          </div>
+
+          <div className="scenario-list">
+            {scenarios.map((scenario) => (
+              <button
+                key={scenario}
+                className={
+                  selectedScenario === scenario
+                    ? "scenario-item selected"
+                    : "scenario-item"
+                }
+                onClick={() => setSelectedScenario(scenario)}
+              >
+                <span>{getScenarioIcon(scenario)}</span>
+                {scenario}
+                <b>›</b>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* Current Negotiation */}
+      <section className="panel negotiation-panel">
+        <div className="panel-header">
+          <div>
+            <h3>Current Negotiation</h3>
+            <p>{selectedScenario}</p>
+          </div>
+
+          <span className="negotiation-status">
+            <i></i>
+            In Progress
+          </span>
+        </div>
+
+        <div className="negotiation-content">
+          <div className="negotiation-agents">
+            <NegotiationAgent name="Supplier Agent" icon="🚚" />
+            <div className="negotiation-arrow">⇄</div>
+            <NegotiationAgent name="Contractor Agent" icon="👷" />
+            <div className="negotiation-arrow">⇄</div>
+            <NegotiationAgent name="Finance Manager Agent" icon="💰" />
+          </div>
+
+          <div className="negotiation-details">
+            <div>
+              <span>Negotiation Round</span>
+              <strong>Round 3</strong>
+            </div>
+
+            <div>
+              <span>Resource</span>
+              <strong>Steel</strong>
+            </div>
+
+            <div>
+              <span>Quantity</span>
+              <strong>600 Tons</strong>
+            </div>
+
+            <div>
+              <span>Status</span>
+              <strong className="warning-text">Counter-offer</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Scenarios({
+  selectedScenario,
+  setSelectedScenario,
+}: {
+  selectedScenario: string;
+  setSelectedScenario: (scenario: string) => void;
+}) {
+  return (
+    <div className="page-content">
+      <section className="welcome-section">
+        <div>
+          <h2>Construction Scenarios</h2>
+          <p>
+            Simulate real-world construction project conflicts and
+            negotiations.
+          </p>
+        </div>
+
+        <button className="primary-button">+ Create Scenario</button>
+      </section>
+
+      <div className="scenario-grid">
+        {scenarios.map((scenario) => (
+          <div
+            className={
+              selectedScenario === scenario
+                ? "large-scenario-card selected"
+                : "large-scenario-card"
+            }
+            key={scenario}
+            onClick={() => setSelectedScenario(scenario)}
+          >
+            <div className="large-scenario-icon">
+              {getScenarioIcon(scenario)}
+            </div>
+
+            <h3>{scenario}</h3>
+
+            <p>{getScenarioDescription(scenario)}</p>
+
+            <button className="outline-button">Open Scenario</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NegotiationMonitor() {
+  return (
+    <div className="page-content">
+      <section className="welcome-section">
+        <div>
+          <h2>Negotiation Monitor</h2>
+          <p>Track agent offers, counter-offers and agreement progress.</p>
+        </div>
+
+        <span className="live-badge">
+          <i></i>
+          Live
+        </span>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Material Shortage Negotiation</h3>
+            <p>Steel procurement and budget allocation</p>
+          </div>
+
+          <span className="negotiation-status">
+            <i></i>
+            Round 3
+          </span>
+        </div>
+
+        <div className="timeline">
+          <NegotiationStep
+            agent="Supplier Agent"
+            action="Initial Offer"
+            message="600 tons of steel available at ₹58,000 per ton."
+            time="10:12 AM"
+            type="offer"
+          />
+
+          <NegotiationStep
+            agent="Contractor Agent"
+            action="Counter Offer"
+            message="Requesting 600 tons at ₹53,000 per ton."
+            time="10:14 AM"
+            type="counter"
+          />
+
+          <NegotiationStep
+            agent="Finance Manager Agent"
+            action="Budget Review"
+            message="Maximum approved procurement budget is ₹3.4 Cr."
+            time="10:17 AM"
+            type="review"
+          />
+        </div>
+      </section>
+
+      <section className="agreement-card">
+        <div>
+          <span>Agreement Evaluation</span>
+          <h2>Pending Final Approval</h2>
+          <p>
+            The mediator is evaluating cost and delivery constraints before
+            committing the allocation.
+          </p>
+        </div>
+
+        <div className="agreement-score">
+          <strong>82%</strong>
+          <span>Compatibility</span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Reports() {
+  return (
+    <div className="page-content">
+      <section className="welcome-section">
+        <div>
+          <h2>Reports & Analytics</h2>
+          <p>Review negotiation performance and project decisions.</p>
+        </div>
+
+        <button className="primary-button">Generate Report</button>
+      </section>
+
+      <section className="stats-grid">
+        <StatCard
+          title="Total Negotiations"
+          value="15"
+          description="This project"
+          icon="🤝"
+        />
+
+        <StatCard
+          title="Successful Agreements"
+          value="12"
+          description="80% success rate"
+          icon="✓"
+        />
+
+        <StatCard
+          title="Average Rounds"
+          value="3.2"
+          description="Per negotiation"
+          icon="↻"
+        />
+
+        <StatCard
+          title="Cost Optimized"
+          value="₹18.6 L"
+          description="Total savings"
+          icon="₹"
+        />
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Negotiation Performance</h3>
+            <p>Recent negotiation outcomes</p>
+          </div>
+        </div>
+
+        <div className="report-table">
+          <div className="table-row table-header">
+            <span>Scenario</span>
+            <span>Agents</span>
+            <span>Rounds</span>
+            <span>Outcome</span>
+          </div>
+
+          <div className="table-row">
+            <span>Material Shortage</span>
+            <span>3</span>
+            <span>4</span>
+            <span className="success-text">Successful</span>
+          </div>
+
+          <div className="table-row">
+            <span>Labor Shortage</span>
+            <span>3</span>
+            <span>3</span>
+            <span className="success-text">Successful</span>
+          </div>
+
+          <div className="table-row">
+            <span>Budget Overrun</span>
+            <span>3</span>
+            <span>5</span>
+            <span className="warning-text">Under Review</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Settings() {
+  return (
+    <div className="page-content">
+      <section className="welcome-section">
+        <div>
+          <h2>Settings</h2>
+          <p>Configure simulator and negotiation preferences.</p>
+        </div>
+      </section>
+
+      <section className="settings-grid">
+        <div className="panel settings-card">
+          <h3>Project Configuration</h3>
+
+          <label>Project Name</label>
+          <input value="Construction Resource Negotiation" readOnly />
+
+          <label>Currency</label>
+          <select defaultValue="INR">
+            <option value="INR">Indian Rupee (₹)</option>
+          </select>
+
+          <label>Default Negotiation Rounds</label>
+          <input type="number" value="5" readOnly />
+        </div>
+
+        <div className="panel settings-card">
+          <h3>Agent Configuration</h3>
+
+          {agents.map((agent) => (
+            <div className="setting-agent" key={agent.name}>
+              <span>{agent.icon}</span>
+              <div>
+                <strong>{agent.name}</strong>
+                <small>{agent.focus}</small>
+              </div>
+              <span className="agent-online">
+                <i></i>
+                Enabled
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  description,
+  icon,
+}: {
+  title: string;
+  value: string;
+  description: string;
+  icon: string;
+}) {
+  return (
+    <div className="stat-card">
+      <div className="stat-icon">{icon}</div>
+
+      <div>
+        <span>{title}</span>
+        <strong>{value}</strong>
+        <small>{description}</small>
+      </div>
+    </div>
+  );
+}
+
+function NegotiationAgent({
+  name,
+  icon,
+}: {
+  name: string;
+  icon: string;
+}) {
+  return (
+    <div className="negotiation-agent">
+      <div>{icon}</div>
+      <strong>{name}</strong>
+      <span>Active</span>
+    </div>
+  );
+}
+
+function NegotiationStep({
+  agent,
+  action,
+  message,
+  time,
+  type,
+}: {
+  agent: string;
+  action: string;
+  message: string;
+  time: string;
+  type: string;
+}) {
+  return (
+    <div className="timeline-item">
+      <div className={`timeline-icon ${type}`}>●</div>
+
+      <div className="timeline-body">
+        <div className="timeline-heading">
+          <strong>{agent}</strong>
+          <span>{time}</span>
+        </div>
+
+        <b>{action}</b>
+        <p>{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function getScenarioIcon(scenario: string) {
+  const icons: Record<string, string> = {
+    "Material Shortage": "▣",
+    "Budget Overrun": "₹",
+    "Labor Shortage": "👷",
+    "Deadline Reduction": "◷",
+    "Scope Changes": "✎",
+    "Weather Delays": "☁",
+    "Equipment Breakdown": "⚙",
+  };
+
+  return icons[scenario] || "●";
+}
+
+function getScenarioDescription(scenario: string) {
+  const descriptions: Record<string, string> = {
+    "Material Shortage":
+      "Negotiate alternative suppliers, procurement cost and delivery schedules.",
+    "Budget Overrun":
+      "Resolve unexpected project cost increases through budget negotiation.",
+    "Labor Shortage":
+      "Balance workforce requirements, overtime and project priorities.",
+    "Deadline Reduction":
+      "Negotiate accelerated completion through additional resources.",
+    "Scope Changes":
+      "Evaluate additional requirements and their cost and schedule impact.",
+    "Weather Delays":
+      "Reschedule construction activities affected by environmental conditions.",
+    "Equipment Breakdown":
+      "Compare repair, replacement and rental options for failed equipment.",
+  };
+
+  return descriptions[scenario] || "";
+}
+
+export default App;
