@@ -1,4 +1,4 @@
-import { Negotiation, Resource, Scenario } from "./types";
+import type { Negotiation, Resource, Scenario } from "./types";
 
 export const scenarios: Scenario[] = [
   {
