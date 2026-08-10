@@ -121,6 +121,8 @@
 
 // export default App
 import { useState } from "react";
+import { scenarioTemplates } from "./data";
+import type { ScenarioTemplate } from "./types";
 import "./App.css";
 
 type Agent = {
@@ -208,6 +210,18 @@ function App() {
 
           <button
             className={
+              activePage === "Agent Configuration"
+                ? "nav-item active"
+                : "nav-item"
+            }
+            onClick={() => setActivePage("Agent Configuration")}
+          >
+            <span>◈</span>
+            Agent Configuration
+          </button>
+
+          <button
+            className={
               activePage === "Negotiation Monitor"
                 ? "nav-item active"
                 : "nav-item"
@@ -291,7 +305,13 @@ function App() {
           />
         )}
 
-        {activePage === "Negotiation Monitor" && <NegotiationMonitor />}
+        {activePage === "Agent Configuration" && (
+          <AgentConfiguration selectedScenario={selectedScenario} />
+        )}
+
+        {activePage === "Negotiation Monitor" && (
+          <NegotiationMonitor selectedScenario={selectedScenario} />
+        )}
 
         {activePage === "Reports & Analytics" && <Reports />}
 
@@ -471,48 +491,288 @@ function Scenarios({
   selectedScenario: string;
   setSelectedScenario: (scenario: string) => void;
 }) {
+  const [viewingTemplate, setViewingTemplate] = useState<ScenarioTemplate | null>(null);
+
+  const handleSelectTemplate = (template: ScenarioTemplate) => {
+    setSelectedScenario(template.name);
+    setViewingTemplate(template);
+  };
+
   return (
     <div className="page-content">
       <section className="welcome-section">
         <div>
-          <h2>Construction Scenarios</h2>
+          <h2>Scenario Selection</h2>
           <p>
-            Simulate real-world construction project conflicts and
-            negotiations.
+            Choose a pre-built construction negotiation template to inspect and configure agent roles, goals, and constraints.
           </p>
         </div>
 
-        <button className="primary-button">+ Create Scenario</button>
+        <span className="count-badge">{scenarioTemplates.length} Templates</span>
       </section>
 
-      <div className="scenario-grid">
-        {scenarios.map((scenario) => (
+      {/* ── Template Cards Grid ── */}
+      <div className="template-grid">
+        {scenarioTemplates.map((template) => {
+          const isSelected = selectedScenario === template.name;
+
+          return (
+            <div
+              className={`template-card ${isSelected ? "selected" : ""}`}
+              key={template.id}
+            >
+              {/* Card Header & Main Info */}
+              <div
+                className="template-card-main"
+                onClick={() => handleSelectTemplate(template)}
+              >
+                <div className="template-card-header">
+                  <div className="template-icon">{template.icon}</div>
+
+                  <div className="template-badges">
+                    <span
+                      className={`difficulty-badge difficulty-${template.difficulty.toLowerCase()}`}
+                    >
+                      {template.difficulty}
+                    </span>
+                    <span className="category-badge">{template.category}</span>
+                  </div>
+                </div>
+
+                <h3>{template.name}</h3>
+                <p className="template-description">{template.description}</p>
+
+                {/* Card Meta */}
+                <div className="template-meta">
+                  <div className="meta-item">
+                    <span>Agents</span>
+                    <strong>{template.agents.length}</strong>
+                  </div>
+                  <div className="meta-item">
+                    <span>Rounds</span>
+                    <strong>~{template.estimatedRounds}</strong>
+                  </div>
+                </div>
+
+                {/* Agent Avatars */}
+                <div className="template-agent-avatars">
+                  {template.agents.map((agent) => (
+                    <div
+                      className="template-avatar"
+                      key={agent.name}
+                      title={`${agent.name} (${agent.role})`}
+                    >
+                      {agent.icon}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  className={
+                    isSelected
+                      ? "primary-button template-select-btn"
+                      : "outline-button template-select-btn"
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSelectTemplate(template);
+                  }}
+                >
+                  {isSelected
+                    ? "✓ Selected — View Details"
+                    : "Select & View Details ▼"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Agent Configuration Modal ── */}
+      {viewingTemplate && (
+        <div
+          className="scenario-modal-overlay"
+          onClick={() => setViewingTemplate(null)}
+        >
           <div
-            className={
-              selectedScenario === scenario
-                ? "large-scenario-card selected"
-                : "large-scenario-card"
-            }
-            key={scenario}
-            onClick={() => setSelectedScenario(scenario)}
+            className="scenario-modal"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="large-scenario-icon">
-              {getScenarioIcon(scenario)}
+            <div className="scenario-modal-header">
+              <div>
+                <h3>{viewingTemplate.name}</h3>
+                <span className="agent-count-tag">
+                  {viewingTemplate.agents.length} Configured Agents
+                </span>
+              </div>
+              <button
+                type="button"
+                className="scenario-modal-close"
+                onClick={() => setViewingTemplate(null)}
+                aria-label="Close details"
+              >
+                ✕
+              </button>
             </div>
 
-            <h3>{scenario}</h3>
+            <div className="agent-detail-grid">
+              {viewingTemplate.agents.map((agent) => (
+                <div className="agent-detail-card" key={agent.name}>
+                  <div className="agent-detail-header">
+                    <span className="agent-detail-icon">{agent.icon}</span>
+                    <div>
+                      <strong>{agent.name}</strong>
+                      <span className="agent-role-badge">{agent.role}</span>
+                    </div>
+                  </div>
 
-            <p>{getScenarioDescription(scenario)}</p>
+                  <div className="agent-section">
+                    <span className="section-label">
+                      <span className="section-icon">🎯</span> Goal
+                    </span>
+                    <p className="agent-goal">{agent.goal}</p>
+                  </div>
 
-            <button className="outline-button">Open Scenario</button>
+                  <div className="agent-section">
+                    <span className="section-label">
+                      <span className="section-icon">🚧</span> Constraints
+                    </span>
+                    <ul className="constraint-list">
+                      {agent.constraints.map((constraint, idx) => (
+                        <li key={idx}>{constraint}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PERSONALITIES = [
+  {
+    key: "Aggressive",
+    icon: "🔥",
+    description: "Pushes hard for maximum gain and is slow to concede.",
+  },
+  {
+    key: "Collaborative",
+    icon: "🤝",
+    description: "Seeks win-win outcomes and concedes readily for consensus.",
+  },
+  {
+    key: "Risk-Averse",
+    icon: "🛡️",
+    description: "Prioritizes safe, predictable outcomes over upside.",
+  },
+] as const;
+
+type Personality = (typeof PERSONALITIES)[number]["key"];
+
+function AgentConfiguration({
+  selectedScenario,
+}: {
+  selectedScenario: string;
+}) {
+  const template = scenarioTemplates.find((t) => t.name === selectedScenario);
+
+  const [personalities, setPersonalities] = useState<
+    Record<string, Personality>
+  >({});
+
+  const handleSelectPersonality = (
+    agentName: string,
+    personality: Personality
+  ) => {
+    setPersonalities((prev) => ({ ...prev, [agentName]: personality }));
+  };
+
+  return (
+    <div className="page-content">
+      <section className="welcome-section">
+        <div>
+          <h2>Agent Configuration</h2>
+          <p>
+            Assign a negotiation personality to each agent in "
+            {selectedScenario}" before running the simulation.
+          </p>
+        </div>
+
+        <span className="count-badge">
+          {template?.agents.length ?? 0} Agents
+        </span>
+      </section>
+
+      <div className="agent-config-grid">
+        {template?.agents.map((agent) => {
+          const selected = personalities[agent.name];
+
+          return (
+            <div className="agent-config-card" key={agent.name}>
+              <div className="agent-detail-header">
+                <span className="agent-detail-icon">{agent.icon}</span>
+                <div>
+                  <strong>{agent.name}</strong>
+                  <span className="agent-role-badge">{agent.role}</span>
+                </div>
+              </div>
+
+              <div className="agent-section">
+                <span className="section-label">
+                  <span className="section-icon">🎯</span> Goal
+                </span>
+                <p className="agent-goal">{agent.goal}</p>
+              </div>
+
+              <div className="agent-section">
+                <span className="section-label">
+                  <span className="section-icon">🧭</span> Negotiation
+                  Personality
+                </span>
+
+                <div className="personality-options">
+                  {PERSONALITIES.map((p) => (
+                    <button
+                      type="button"
+                      key={p.key}
+                      className={
+                        selected === p.key
+                          ? "personality-btn selected"
+                          : "personality-btn"
+                      }
+                      onClick={() => handleSelectPersonality(agent.name, p.key)}
+                      title={p.description}
+                    >
+                      <span>{p.icon}</span>
+                      {p.key}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function NegotiationMonitor() {
+function NegotiationMonitor({
+  selectedScenario,
+}: {
+  selectedScenario: string;
+}) {
+  const template = scenarioTemplates.find(
+    (t) => t.name === selectedScenario
+  );
+
+  const stepTypes = ["offer", "counter", "review"];
+
   return (
     <div className="page-content">
       <section className="welcome-section">
@@ -530,55 +790,42 @@ function NegotiationMonitor() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Material Shortage Negotiation</h3>
-            <p>Steel procurement and budget allocation</p>
+            <h3>{selectedScenario} Negotiation</h3>
+            <p>{getScenarioDescription(selectedScenario)}</p>
           </div>
 
           <span className="negotiation-status">
             <i></i>
-            Round 3
+            ~{template?.estimatedRounds ?? "—"} Rounds Expected
           </span>
         </div>
 
         <div className="timeline">
-          <NegotiationStep
-            agent="Supplier Agent"
-            action="Initial Offer"
-            message="600 tons of steel available at ₹58,000 per ton."
-            time="10:12 AM"
-            type="offer"
-          />
-
-          <NegotiationStep
-            agent="Contractor Agent"
-            action="Counter Offer"
-            message="Requesting 600 tons at ₹53,000 per ton."
-            time="10:14 AM"
-            type="counter"
-          />
-
-          <NegotiationStep
-            agent="Finance Manager Agent"
-            action="Budget Review"
-            message="Maximum approved procurement budget is ₹3.4 Cr."
-            time="10:17 AM"
-            type="review"
-          />
+          {template?.agents.map((agent, idx) => (
+            <NegotiationStep
+              key={agent.name}
+              agent={agent.name}
+              action="Opening Position"
+              message={agent.goal}
+              time="Not yet started"
+              type={stepTypes[idx % stepTypes.length]}
+            />
+          ))}
         </div>
       </section>
 
       <section className="agreement-card">
         <div>
           <span>Agreement Evaluation</span>
-          <h2>Pending Final Approval</h2>
+          <h2>Awaiting Simulation</h2>
           <p>
-            The mediator is evaluating cost and delivery constraints before
-            committing the allocation.
+            This scenario hasn't been run yet — agent offers and an agreement
+            score will appear here once the negotiation is simulated.
           </p>
         </div>
 
         <div className="agreement-score">
-          <strong>82%</strong>
+          <strong>—</strong>
           <span>Compatibility</span>
         </div>
       </section>

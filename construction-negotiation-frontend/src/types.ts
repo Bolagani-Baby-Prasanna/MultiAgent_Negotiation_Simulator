@@ -40,3 +40,24 @@ export interface Resource {
   unit: string;
   status: Status;
 }
+
+/* ── Task 3: Scenario Selection Module ── */
+
+export interface AgentConfig {
+  name: string;
+  icon: string;
+  role: string;
+  goal: string;
+  constraints: string[];
+}
+
+export interface ScenarioTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  category: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  estimatedRounds: number;
+  agents: AgentConfig[];
+}
