@@ -121,6 +121,7 @@
 
 // export default App
 import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { scenarioTemplates } from "./data";
 import type { ScenarioTemplate } from "./types";
 import "./App.css";
@@ -178,6 +179,9 @@ const scenarios = [
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [selectedScenario, setSelectedScenario] = useState("Material Shortage");
+  const [personalities, setPersonalities] = useState<
+    Record<string, Personality>
+  >({});
 
   return (
     <div className="app">
@@ -306,11 +310,19 @@ function App() {
         )}
 
         {activePage === "Agent Configuration" && (
-          <AgentConfiguration selectedScenario={selectedScenario} />
+          <AgentConfiguration
+            selectedScenario={selectedScenario}
+            personalities={personalities}
+            setPersonalities={setPersonalities}
+            onStartNegotiation={() => setActivePage("Negotiation Monitor")}
+          />
         )}
 
         {activePage === "Negotiation Monitor" && (
-          <NegotiationMonitor selectedScenario={selectedScenario} />
+          <NegotiationMonitor
+            selectedScenario={selectedScenario}
+            personalities={personalities}
+          />
         )}
 
         {activePage === "Reports & Analytics" && <Reports />}
@@ -676,14 +688,19 @@ type Personality = (typeof PERSONALITIES)[number]["key"];
 
 function AgentConfiguration({
   selectedScenario,
+  personalities,
+  setPersonalities,
+  onStartNegotiation,
 }: {
   selectedScenario: string;
+  personalities: Record<string, Personality>;
+  setPersonalities: Dispatch<SetStateAction<Record<string, Personality>>>;
+  onStartNegotiation: () => void;
 }) {
   const template = scenarioTemplates.find((t) => t.name === selectedScenario);
 
-  const [personalities, setPersonalities] = useState<
-    Record<string, Personality>
-  >({});
+  const allConfigured =
+    !!template && template.agents.every((agent) => personalities[agent.name]);
 
   const handleSelectPersonality = (
     agentName: string,
@@ -758,14 +775,33 @@ function AgentConfiguration({
           );
         })}
       </div>
+
+      <div className="start-negotiation-bar">
+        <p>
+          {allConfigured
+            ? "All agents are configured — ready to start."
+            : "Select a personality for every agent to start the negotiation."}
+        </p>
+
+        <button
+          type="button"
+          className="primary-button"
+          disabled={!allConfigured}
+          onClick={onStartNegotiation}
+        >
+          Start Negotiation →
+        </button>
+      </div>
     </div>
   );
 }
 
 function NegotiationMonitor({
   selectedScenario,
+  personalities,
 }: {
   selectedScenario: string;
+  personalities: Record<string, Personality>;
 }) {
   const template = scenarioTemplates.find(
     (t) => t.name === selectedScenario
@@ -805,6 +841,7 @@ function NegotiationMonitor({
             <NegotiationStep
               key={agent.name}
               agent={agent.name}
+              personality={personalities[agent.name]}
               action="Opening Position"
               message={agent.goal}
               time="Not yet started"
@@ -1007,12 +1044,14 @@ function NegotiationAgent({
 
 function NegotiationStep({
   agent,
+  personality,
   action,
   message,
   time,
   type,
 }: {
   agent: string;
+  personality?: string;
   action: string;
   message: string;
   time: string;
@@ -1024,7 +1063,12 @@ function NegotiationStep({
 
       <div className="timeline-body">
         <div className="timeline-heading">
-          <strong>{agent}</strong>
+          <div className="timeline-agent-name">
+            <strong>{agent}</strong>
+            {personality && (
+              <span className="personality-tag">{personality}</span>
+            )}
+          </div>
           <span>{time}</span>
         </div>
 
