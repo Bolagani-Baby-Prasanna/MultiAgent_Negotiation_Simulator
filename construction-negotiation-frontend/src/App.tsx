@@ -954,6 +954,9 @@ function Reports() {
   );
 }
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 function Settings() {
   const [testPrompt, setTestPrompt] = useState("Say hello in exactly 5 words.");
   const [testReply, setTestReply] = useState("");
@@ -966,7 +969,7 @@ function Settings() {
     setTestReply("");
 
     try {
-      const res = await fetch("http://localhost:4000/api/test", {
+      const res = await fetch(`${API_BASE_URL}/api/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: testPrompt }),
@@ -980,9 +983,7 @@ function Settings() {
         setTestReply(data.reply);
       }
     } catch {
-      setTestError(
-        "Could not reach the backend. Is it running on localhost:4000?"
-      );
+      setTestError(`Could not reach the backend at ${API_BASE_URL}.`);
     } finally {
       setTestLoading(false);
     }
