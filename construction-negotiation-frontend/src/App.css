@@ -1030,6 +1030,35 @@ button {
   font-size: 18px;
 }
 
+.settings-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #8b94a6;
+  line-height: 1.5;
+}
+
+.settings-card .primary-button {
+  margin-top: 16px;
+}
+
+.test-result {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.test-result.success {
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.test-result.error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
 .setting-agent div {
   flex: 1;
 }

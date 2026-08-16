@@ -955,6 +955,39 @@ function Reports() {
 }
 
 function Settings() {
+  const [testPrompt, setTestPrompt] = useState("Say hello in exactly 5 words.");
+  const [testReply, setTestReply] = useState("");
+  const [testError, setTestError] = useState("");
+  const [testLoading, setTestLoading] = useState(false);
+
+  const handleTestAI = async () => {
+    setTestLoading(true);
+    setTestError("");
+    setTestReply("");
+
+    try {
+      const res = await fetch("http://localhost:4000/api/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: testPrompt }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTestError(data.error || "Something went wrong.");
+      } else {
+        setTestReply(data.reply);
+      }
+    } catch {
+      setTestError(
+        "Could not reach the backend. Is it running on localhost:4000?"
+      );
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
   return (
     <div className="page-content">
       <section className="welcome-section">
@@ -996,6 +1029,33 @@ function Settings() {
               </span>
             </div>
           ))}
+        </div>
+
+        <div className="panel settings-card">
+          <h3>AI Connection Test</h3>
+          <p className="settings-hint">
+            Sends a message to the backend, which forwards it to the AI model
+            and returns the reply — use this to confirm the backend is
+            reachable and connected.
+          </p>
+
+          <label>Test Message</label>
+          <input
+            value={testPrompt}
+            onChange={(e) => setTestPrompt(e.target.value)}
+          />
+
+          <button
+            type="button"
+            className="primary-button"
+            disabled={testLoading}
+            onClick={handleTestAI}
+          >
+            {testLoading ? "Sending…" : "Send Test Message"}
+          </button>
+
+          {testReply && <p className="test-result success">{testReply}</p>}
+          {testError && <p className="test-result error">{testError}</p>}
         </div>
       </section>
     </div>
