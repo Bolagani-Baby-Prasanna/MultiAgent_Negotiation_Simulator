@@ -1,0 +1,12 @@
+{
+  "framework": "vite",
+  "buildCommand": "cd construction-negotiation-frontend && npm run build",
+  "outputDirectory": "construction-negotiation-frontend/dist",
+  "installCommand": "cd construction-negotiation-frontend && npm install",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
