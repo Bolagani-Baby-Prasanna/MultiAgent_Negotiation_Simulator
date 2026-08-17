@@ -44,15 +44,7 @@ const agents: Agent[] = [
   },
 ];
 
-const scenarios = [
-  "Material Shortage",
-  "Budget Overrun",
-  "Labor Shortage",
-  "Deadline Reduction",
-  "Scope Changes",
-  "Weather Delays",
-  "Equipment Breakdown",
-];
+
 
 const INITIAL_REPORTS: CompletedReport[] = [
   {
@@ -1986,19 +1978,7 @@ function NegotiationStep({
   );
 }
 
-function getScenarioIcon(scenario: string) {
-  const icons: Record<string, string> = {
-    "Material Shortage": "▣",
-    "Budget Overrun": "₹",
-    "Labor Shortage": "👷",
-    "Deadline Reduction": "◷",
-    "Scope Changes": "✎",
-    "Weather Delays": "☁",
-    "Equipment Breakdown": "⚙",
-  };
 
-  return icons[scenario] || "●";
-}
 
 function getScenarioDescription(scenario: string) {
   const descriptions: Record<string, string> = {
