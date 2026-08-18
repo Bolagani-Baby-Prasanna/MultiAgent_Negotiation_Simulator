@@ -3,7 +3,6 @@ import os
 from orchestrator import NegotiationOrchestrator
 from agent_reasoning import generate_agent_turn
 from counteroffer_evaluator import evaluate_offer, evaluation_to_dict
-import google.generativeai as genai
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -12,9 +11,16 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
-api_key = os.environ.get("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+load_dotenv()
+
+groq_api_key = os.environ.get("GROQ_API_KEY")
+groq_client = None
+if groq_api_key:
+    try:
+        from groq import Groq
+        groq_client = Groq(api_key=groq_api_key)
+    except Exception as e:
+        print(f"Warning: Failed to initialize Groq client: {e}")
 
 app = FastAPI()
 
@@ -61,13 +67,35 @@ def health():
 @app.post("/api/test")
 def test_ai(body: TestRequest):
     try:
-        result = model.generate_content(body.prompt)
-        return {"reply": result.text}
-    except Exception:
+        if not groq_client:
+            return JSONResponse(
+                status_code=500,
+                content={"error": "GROQ_API_KEY is missing or Groq client is not initialized"},
+            )
+
+        candidate_models = ["groq/compound", "qwen/qwen3.6-27b", "openai/gpt-oss-120b"]
+        last_err = None
+
+        for model_name in candidate_models:
+            try:
+                response = groq_client.chat.completions.create(
+                    messages=[{"role": "user", "content": body.prompt}],
+                    model=model_name,
+                )
+                reply = response.choices[0].message.content
+                return {"reply": reply}
+            except Exception as model_err:
+                last_err = model_err
+                continue
+
+        raise last_err or Exception("All candidate Groq models failed")
+
+    except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"error": "Failed to get a response from the AI model"},
+            content={"error": f"Failed to get a response from Groq AI model: {str(e)}"},
         )
+
 
 @app.post("/api/negotiation/start")
 def start_negotiation(request: NegotiationStartRequest):

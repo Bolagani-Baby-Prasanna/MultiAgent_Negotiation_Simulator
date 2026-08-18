@@ -1,9 +1,22 @@
 import json
+import os
 
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig
-
+from dotenv import load_dotenv
 from counteroffer_evaluator import evaluate_offer, evaluation_to_dict
+
+load_dotenv()
+
+# ------------------------------------------------------------------
+# Groq AI Client setup
+# ------------------------------------------------------------------
+groq_api_key = os.environ.get("GROQ_API_KEY")
+_groq_client = None
+if groq_api_key:
+    try:
+        from groq import Groq
+        _groq_client = Groq(api_key=groq_api_key)
+    except Exception as e:
+        print(f"Warning: Failed to initialize Groq client in agent_reasoning: {e}")
 
 # ------------------------------------------------------------------
 # Personality behavior descriptions
@@ -29,8 +42,6 @@ PERSONALITY_PROMPTS = {
 
 DEFAULT_PERSONALITY = "Collaborative"
 
-# Model is created once and reused across requests.
-_model = genai.GenerativeModel("gemini-flash-latest")
 
 
 def _format_history(history):
@@ -271,7 +282,7 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
 
 
 def generate_agent_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds):
-    """Calls Gemini to produce one AI-reasoned negotiation turn for `agent`.
+    """Calls Groq AI to produce one AI-reasoned negotiation turn for `agent`.
 
     Returns a dict: {"action", "offer", "message", "reasoning", "evaluation"}.
     The "evaluation" key contains the structured evaluation data from the
@@ -305,18 +316,46 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
     )
 
     try:
-        result = _model.generate_content(
-            prompt,
-            generation_config=GenerationConfig(
-                response_mime_type="application/json",
-                temperature=0.9,
-            ),
-        )
-        data = json.loads(result.text)
+        if not _groq_client:
+            raise ValueError("Groq client not initialized")
+
+        candidate_models = ["groq/compound", "qwen/qwen3.6-27b", "openai/gpt-oss-120b"]
+        response = None
+        last_err = None
+
+        for model_name in candidate_models:
+            try:
+                response = _groq_client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an expert negotiation AI agent participating in a simulated construction negotiation. "
+                                "You MUST respond ONLY with a valid JSON object."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    model=model_name,
+                    response_format={"type": "json_object"},
+                    temperature=0.7,
+                )
+                if response:
+                    break
+            except Exception as model_err:
+                last_err = model_err
+                continue
+
+        if not response:
+            raise last_err or ValueError("All Groq candidate models failed")
+
+        content = response.choices[0].message.content
+        data = json.loads(content)
 
         action = data.get("action")
         if action not in ("offer", "counter", "accept", "reject"):
             raise ValueError(f"Invalid action from model: {action!r}")
+
 
         return {
             "action": action,
@@ -326,7 +365,8 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             "evaluation": evaluation_dict,
         }
 
-    except Exception:
+    except Exception as e:
+        # Fallback to smart algorithmic turn generator
         turn = _smart_algorithmic_turn(
             agent=agent,
             personality=personality,
@@ -338,4 +378,4 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             evaluation=evaluation,
         )
         turn["evaluation"] = evaluation_dict
-        return turn
+        return turn

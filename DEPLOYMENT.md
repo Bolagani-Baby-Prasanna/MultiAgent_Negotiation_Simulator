@@ -19,7 +19,7 @@ This repository contains a full-stack application:
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT` (or `uvicorn main:app --host 0.0.0.0 --port $PORT`)
 4. Add Environment Variable (Optional):
-   - `GEMINI_API_KEY`: *(Your Google Gemini API Key - if not provided, backend automatically uses intelligent algorithmic fallback)*
+   - `GROQ_API_KEY`: *(Your Groq API Key - if not provided, backend automatically uses intelligent algorithmic fallback)*
 5. Click **Create Web Service**. Your backend URL will be e.g. `https://negotiation-backend.onrender.com`.
 
 ### Option B: Railway
@@ -53,4 +53,4 @@ This repository contains a full-stack application:
 |---|---|---|
 | **CORS Error in Browser** | Backend blocking frontend URL | Backend `main.py` is configured with `allow_origins=["*"]`. Ensure backend URL in `VITE_API_BASE_URL` is correct without a trailing slash. |
 | **404 on Page Refresh** | SPA routing not configured on Vercel | `construction-negotiation-frontend/vercel.json` is included to handle route rewrites automatically. |
-| **Backend Startup Failure** | Missing API Key or wrong port | Backend handles missing `GEMINI_API_KEY` gracefully without crashing and binds dynamically to `$PORT`. |
+| **Backend Startup Failure** | Missing API Key or wrong port | Backend handles missing `GROQ_API_KEY` gracefully without crashing and binds dynamically to `$PORT`. |
