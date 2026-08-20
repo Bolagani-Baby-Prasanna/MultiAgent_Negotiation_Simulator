@@ -18,22 +18,22 @@ Below is a complete breakdown of every file in the repository, explaining **why 
 
 ### 📁 Root Directory (`/`)
 
-#### 📄 [`PROJECT_DOCUMENTATION.md`](file:///c:/AI%20Projects/construction%20negotiation%20project/PROJECT_DOCUMENTATION.md)
+#### 📄 [`PROJECT_DOCUMENTATION.md`](PROJECT_DOCUMENTATION.md)
 * **Purpose**: This complete documentation guide explaining architecture, file purposes, agent reasoning, negotiation flow, and prompts.
 
-#### 📄 [`DEPLOYMENT.md`](file:///c:/AI%20Projects/construction%20negotiation%20project/DEPLOYMENT.md)
+#### 📄 [`DEPLOYMENT.md`](DEPLOYMENT.md)
 * **Why it is present**: Provides step-by-step instructions for deploying the backend to cloud platforms (Render, Railway) and the frontend to static hosts (Vercel, Netlify).
 * **Purpose**: Ensures smooth CI/CD and cloud deployment with environment variable configuration instructions.
 
-#### 📄 [`package.json`](file:///c:/AI%20Projects/construction%20negotiation%20project/package.json)
+#### 📄 [`package.json`](package.json)
 * **Why it is present**: Serves as the top-level npm workspace configuration.
 * **Purpose**: Allows running convenient root commands like `npm run dev` (starts frontend dev server) and `npm run build` from the workspace root.
 
-#### 📄 [`vercel.json`](file:///c:/AI%20Projects/construction%20negotiation%20project/vercel.json)
+#### 📄 [`vercel.json`](vercel.json)
 * **Why it is present**: Configuration file for Vercel deployment.
 * **Purpose**: Defines SPA (Single Page Application) routing rules so page refreshes don't trigger 404 errors.
 
-#### 📄 [`.gitignore`](file:///c:/AI%20Projects/construction%20negotiation%20project/.gitignore)
+#### 📄 [`.gitignore`](.gitignore)
 * **Why it is present**: Specifies files and directories that Git should ignore.
 * **Purpose**: Prevents checking in secret `.env` files, `node_modules/`, `__pycache__/`, `.venv/`, and build artifacts (`dist/`).
 
@@ -41,7 +41,7 @@ Below is a complete breakdown of every file in the repository, explaining **why 
 
 ### 📁 Backend Directory (`/backend`)
 
-#### 📄 [`backend/main.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/main.py)
+#### 📄 [`backend/main.py`](backend/main.py)
 * **Why it is present**: Entry point for the FastAPI Python web backend.
 * **Purpose**: Exposes REST API endpoints for the React frontend:
   * `GET /health`: Health check endpoint.
@@ -50,7 +50,7 @@ Below is a complete breakdown of every file in the repository, explaining **why 
   * `POST /api/negotiation/next-turn`: Generates the next AI-reasoned turn for the active agent and advances negotiation state.
   * `POST /api/negotiation/evaluate`: Performs on-demand quantitative scoring and concession evaluation without advancing state.
 
-#### 📄 [`backend/agent_reasoning.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/agent_reasoning.py)
+#### 📄 [`backend/agent_reasoning.py`](backend/agent_reasoning.py)
 * **Why it is present**: The core AI brain for negotiation agents.
 * **Purpose**:
   1. Initializes the **Groq AI SDK** with `GROQ_API_KEY`.
@@ -59,14 +59,14 @@ Below is a complete breakdown of every file in the repository, explaining **why 
   4. Invokes Groq models using structured JSON mode (`response_format={"type": "json_object"}`).
   5. Implements **`_smart_algorithmic_turn()`** as a fail-safe fallback generator to guarantee realistic turns even if offline or if network API limits are reached.
 
-#### 📄 [`backend/orchestrator.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/orchestrator.py)
+#### 📄 [`backend/orchestrator.py`](backend/orchestrator.py)
 * **Why it is present**: Manages state transitions, round tracking, and history in a stateless REST API model.
 * **Purpose**:
-  * Tracks current round (`1` to `max_rounds`), current active agent index, active/agreement/deadlock status, and full message history.
+  * Tracks current round (`1` to `max_rounds`), current active agent index, active/agreement/max_rounds status, and full message history.
   * Ensures agents take strict turns in round-robin sequence.
-  * Enforces maximum round budget limits (auto-deadlock when round budget is exhausted without consensus).
+  * Enforces maximum round budget limits (status becomes `"max_rounds"` when the round budget is exhausted without consensus).
 
-#### 📄 [`backend/counteroffer_evaluator.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/counteroffer_evaluator.py)
+#### 📄 [`backend/counteroffer_evaluator.py`](backend/counteroffer_evaluator.py)
 * **Why it is present**: Algorithmic decision and quantitative scoring engine.
 * **Purpose**:
   * Parses numeric bounds from text constraints (e.g., "Minimum price $50,000" ➔ limit 50,000, lower bound).
@@ -74,52 +74,56 @@ Below is a complete breakdown of every file in the repository, explaining **why 
   * Computes **Concession Rates**, concession velocity, and remaining room for each agent across rounds.
   * Generates actionable recommendations (`ACCEPT`, `COUNTER`, `REJECT`) with suggested counter-offer numeric ranges.
 
-#### 📄 [`backend/prompt_templates.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/prompt_templates.py)
+#### 📄 [`backend/prompt_templates.py`](backend/prompt_templates.py)
 * **Why it is present**: Single unified prompt template module consolidating all AI agent prompt generation logic.
 * **Purpose**:
   * Contains `MASTER_PROMPT_TEMPLATE` embedding scenario context, hard constraints, negotiation history, personality instructions, and JSON schemas.
   * Encapsulates `AGENT_DOMAIN_GUIDELINES` for all 5 roles (Contractor, Supplier, Finance Manager, Project Manager, Client, plus custom fallback).
   * Implements `format_history()`, `format_evaluation_advisory()`, and `build_prompt_from_template()` (`get_agent_prompt`) for dynamically passing context-rich prompts to Groq AI models.
 
-#### 📄 [`backend/test_agent_prompts.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/test_agent_prompts.py)
-* **Why it is present**: Automated test suite for the prompt templates module.
-* **Purpose**: Verifies prompt generation, dynamic role selection, history formatting, and advisory block injections for all agent roles.
+#### 📄 [`backend/test_counteroffer_evaluator.py`](backend/test_counteroffer_evaluator.py)
+* **Why it is present**: Automated test suite containing 21 Pytest unit tests for the counteroffer evaluation engine.
+* **Purpose**: Verifies constraint parsing, numeric scoring, concession tracking, and recommendation logic to prevent code regressions.
 
-#### 📄 [`backend/requirements.txt`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/requirements.txt)
+#### 📄 [`backend/test_agent_prompts.py`](backend/test_agent_prompts.py)
+* **Why it is present**: Automated test suite for the prompt templates module.
+* **Purpose**: Verifies prompt generation, dynamic role selection, history formatting, and agreement convergence simulations across all agent roles.
+
+#### 📄 [`backend/requirements.txt`](backend/requirements.txt)
 * **Why it is present**: List of required Python packages.
 * **Purpose**: Installs `fastapi`, `uvicorn`, `gunicorn`, `groq`, `python-dotenv`, `pydantic`, and `requests`.
 
-#### 📄 [`backend/.env`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/.env)
+#### 📄 [`backend/.env`](backend/.env)
 * **Why it is present**: Local configuration file containing sensitive secrets.
 * **Purpose**: Stores `GROQ_API_KEY=gsk_...` for API authentication.
 
-#### 📄 [`backend/.env.example`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/.env.example)
+#### 📄 [`backend/.env.example`](backend/.env.example)
 * **Why it is present**: Environment variable reference template.
 * **Purpose**: Shared with developers as a template for `.env`.
 
-#### 📄 [`backend/README.md`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/README.md)
+#### 📄 [`backend/README.md`](backend/README.md)
 * **Why it is present**: Quick setup and API documentation for backend developer onboarding.
 
-#### 📄 [`backend/render.yaml`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/render.yaml) & [`backend/Procfile`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/Procfile)
+#### 📄 [`backend/render.yaml`](backend/render.yaml) & [`backend/Procfile`](backend/Procfile)
 * **Why they are present**: Cloud deployment manifests for Render and Heroku/Railway platforms.
 
 ---
 
 ### 📁 Frontend Directory (`/construction-negotiation-frontend`)
 
-#### 📄 [`src/App.tsx`](file:///c:/AI%20Projects/construction%20negotiation%20project/construction-negotiation-frontend/src/App.tsx)
+#### 📄 [`src/App.tsx`](construction-negotiation-frontend/src/App.tsx)
 * **Why it is present**: The central React UI view and controller.
 * **Purpose**:
-  * Contains pre-configured realistic construction scenarios (Foundation Subcontract, Commercial HVAC System, Structural Steel Supply).
+  * Renders the 7 pre-configured construction scenarios (Material Shortage, Budget Overrun, Labor Shortage, Deadline Reduction, Scope Changes, Weather Delays, Equipment Breakdown), each with 3 agents — the scenario/agent data itself is defined in `src/data.ts`, not hardcoded in this file.
   * Provides personality pickers for each participating agent.
-  * Features live negotiation control buttons (**Start Negotiation**, **Step Next Turn**, **Auto-Play Simulation**, **Reset**).
-  * Renders the interactive chat timeline, active agent badges, deal status badges (Active, Agreement Reached, Deadlock), and quantitative offer evaluation advisory panel.
+  * Features live negotiation control buttons (**Run Negotiation**, **Generate Next Turn**, **Auto-Run**).
+  * Renders the interactive chat timeline, active agent badges, deal status badges (Live, Agreement Reached, Max Rounds Reached), and quantitative offer evaluation advisory panel.
 
-#### 📄 [`src/App.css`](file:///c:/AI%20Projects/construction%20negotiation%20project/construction-negotiation-frontend/src/App.css) & [`src/index.css`](file:///c:/AI%20Projects/construction%20negotiation%20project/construction-negotiation-frontend/src/index.css)
+#### 📄 [`src/App.css`](construction-negotiation-frontend/src/App.css) & [`src/index.css`](construction-negotiation-frontend/src/index.css)
 * **Why they are present**: Modern CSS styling files.
 * **Purpose**: Implements sleek glassmorphism UI design, curated dark mode color tokens, micro-animations, responsive layout flexbox/grid containers, and status indicator styles.
 
-#### 📄 [`src/main.tsx`](file:///c:/AI%20Projects/construction%20negotiation%20project/construction-negotiation-frontend/src/main.tsx)
+#### 📄 [`src/main.tsx`](construction-negotiation-frontend/src/main.tsx)
 * **Why it is present**: React application entry point.
 * **Purpose**: Mounts the top-level `<App />` component into the DOM `div#root`.
 
@@ -128,9 +132,9 @@ Below is a complete breakdown of every file in the repository, explaining **why 
 ## 3. How Agents Work & Personality Profiles
 
 Each agent in the simulation represents a commercial participant with four attributes:
-1. **Name & Role**: e.g. *"Subcontractor (Foundation Provider)"* or *"General Contractor (Buyer)"*.
-2. **Goal**: Primary financial or operational target (e.g. *"Maximize profit margin, target price $58,000"*).
-3. **Hard Constraints**: Strict limits that the agent must **never** violate (e.g. *"Minimum price $50,000"* or *"Maximum budget $55,000"*).
+1. **Name & Role**: e.g. *"Supplier Agent (Material Provider)"* or *"Contractor Agent (Material Buyer)"*.
+2. **Goal**: Primary financial or operational target (e.g. *"Maximize profit margin on steel supply while retaining the client relationship."*).
+3. **Hard Constraints**: Strict limits that the agent must **never** violate (e.g. *"Minimum price: ₹52,000 per ton"* or *"Budget cap for steel: ₹3.5 Cr"*).
 4. **Personality**: Behavioral policy governing concession speed:
    * **Aggressive**: Pushes for maximum gain, concedes slowly, holds firm near ideal position.
    * **Collaborative**: Seeks win-win agreements, ready to make meaningful early concessions to reach consensus.
@@ -140,15 +144,15 @@ Each agent in the simulation represents a commercial participant with four attri
 
 ## 4. Where the Agent Prompts are Located
 
-All agent prompts are centrally defined in **[`backend/agent_reasoning.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/agent_reasoning.py)**.
+All agent prompts are centrally defined in **[`backend/agent_reasoning.py`](backend/agent_reasoning.py)**.
 
-### 1. System Prompt (Line 324)
+### 1. System Prompt (Line 332)
 ```python
 "You are an expert negotiation AI agent participating in a simulated construction negotiation. "
 "You MUST respond ONLY with a valid JSON object."
 ```
 
-### 2. Personality Prompts (Lines 12–28)
+### 2. Personality Prompts (Lines 25–41)
 ```python
 PERSONALITY_PROMPTS = {
     "Aggressive": (
@@ -169,7 +173,7 @@ PERSONALITY_PROMPTS = {
 }
 ```
 
-### 3. Comprehensive Context Prompt (`_build_prompt()`, Lines 50–140)
+### 3. Comprehensive Context Prompt (`_build_prompt()`, Lines 61–151)
 The prompt dynamically injects:
 * Role & Goal description
 * Hard constraint list
@@ -209,7 +213,7 @@ sequenceDiagram
     User->>Orchestrator: POST /api/negotiation/start
     Orchestrator-->>User: Initial State (Round 1, Agent 0 Active)
 
-    loop Every Turn (Click 'Step Next Turn' or Auto-Play)
+    loop Every Turn (Click 'Generate Next Turn' or Auto-Run)
         User->>Orchestrator: POST /api/negotiation/next-turn (State)
         Orchestrator->>Evaluator: evaluate_offer(agent, scenario, history)
         Evaluator-->>Orchestrator: Advisory Score, Concessions, Recommendation
@@ -223,7 +227,7 @@ sequenceDiagram
         end
         
         alt Round > Max Rounds
-            Orchestrator->>Orchestrator: Status = "deadlock"
+            Orchestrator->>Orchestrator: Status = "max_rounds"
         end
 
         Orchestrator-->>User: Updated Turn + Negotiation State
