@@ -74,9 +74,16 @@ Below is a complete breakdown of every file in the repository, explaining **why 
   * Computes **Concession Rates**, concession velocity, and remaining room for each agent across rounds.
   * Generates actionable recommendations (`ACCEPT`, `COUNTER`, `REJECT`) with suggested counter-offer numeric ranges.
 
-#### 📄 [`backend/test_counteroffer_evaluator.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/test_counteroffer_evaluator.py)
-* **Why it is present**: Automated test suite containing 21 Pytest unit tests.
-* **Purpose**: Verifies constraint parsing, numeric scoring, concession tracking, and recommendation logic to prevent code regressions.
+#### 📄 [`backend/prompt_templates.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/prompt_templates.py)
+* **Why it is present**: Single unified prompt template module consolidating all AI agent prompt generation logic.
+* **Purpose**:
+  * Contains `MASTER_PROMPT_TEMPLATE` embedding scenario context, hard constraints, negotiation history, personality instructions, and JSON schemas.
+  * Encapsulates `AGENT_DOMAIN_GUIDELINES` for all 5 roles (Contractor, Supplier, Finance Manager, Project Manager, Client, plus custom fallback).
+  * Implements `format_history()`, `format_evaluation_advisory()`, and `build_prompt_from_template()` (`get_agent_prompt`) for dynamically passing context-rich prompts to Groq AI models.
+
+#### 📄 [`backend/test_agent_prompts.py`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/test_agent_prompts.py)
+* **Why it is present**: Automated test suite for the prompt templates module.
+* **Purpose**: Verifies prompt generation, dynamic role selection, history formatting, and advisory block injections for all agent roles.
 
 #### 📄 [`backend/requirements.txt`](file:///c:/AI%20Projects/construction%20negotiation%20project/backend/requirements.txt)
 * **Why it is present**: List of required Python packages.

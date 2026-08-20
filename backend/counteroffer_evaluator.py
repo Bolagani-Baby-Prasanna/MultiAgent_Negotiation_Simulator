@@ -116,8 +116,17 @@ def _parse_numeric_bound(constraint_text: str) -> tuple[float | None, str]:
     except ValueError:
         return None, "unknown"
 
-    # Handle "Cr" / "Lakhs" multiplier
     lower_text = constraint_text.lower()
+
+    # If the constraint is clearly a timeline/quality/logistics term (e.g. "5 business days", "3 days", "Fe-500", "2 sub-suppliers")
+    # without currency/pricing/volume indicators, treat as qualitative term.
+    is_monetary_or_volume = any(m in lower_text for m in ["₹", "rs", "cost", "price", "budget", "cr", "lakh", "crore", "fee", "penalty", "margin", "overrun", "fund", "rate", "ton", "tons", "capacity"])
+    is_non_offer_term = any(t in lower_text for t in ["day", "days", "week", "weeks", "month", "months", "grade", "fe-", "sub-supplier", "sub-suppliers", "stock", "inspection"])
+
+    if is_non_offer_term and not is_monetary_or_volume:
+        return None, "unknown"
+
+    # Handle "Cr" / "Lakhs" multiplier
     if "cr" in lower_text and value < 100:
         value *= 1_00_00_000          # 1 Cr = 10 000 000
     elif "lakh" in lower_text and value < 10_000:

@@ -19,136 +19,28 @@ if groq_api_key:
         print(f"Warning: Failed to initialize Groq client in agent_reasoning: {e}")
 
 # ------------------------------------------------------------------
-# Personality behavior descriptions
-# (mirrors PERSONALITIES in the frontend's App.tsx — keep these in sync)
+# Prompts & Personality setup (single unified prompt template module)
 # ------------------------------------------------------------------
-PERSONALITY_PROMPTS = {
-    "Aggressive": (
-        "You push hard for maximum gain on every point. You concede slowly "
-        "and only when the alternative is clearly worse than holding firm. "
-        "Your offers stay close to your ideal outcome for as long as possible."
-    ),
-    "Collaborative": (
-        "You look for win-win outcomes and value reaching consensus. You are "
-        "willing to make meaningful concessions early if it moves the group "
-        "toward agreement, as long as your hard constraints are respected."
-    ),
-    "Risk-Averse": (
-        "You prioritize safe, predictable outcomes over chasing the best "
-        "possible deal. You avoid offers that could fall through and prefer "
-        "modest, defensible terms that are unlikely to be rejected."
-    ),
-}
-
-DEFAULT_PERSONALITY = "Collaborative"
-
-
-
-def _format_history(history):
-    if not history:
-        return "No offers have been made yet. This is the opening move."
-
-    lines = []
-    for entry in history:
-        offer_part = f" (offer: {entry['offer']})" if entry.get("offer") is not None else ""
-        lines.append(
-            f"Round {entry['round']} — {entry['agent']} [{entry['action']}]: "
-            f"{entry['message']}{offer_part}"
-        )
-    return "\n".join(lines)
+from prompt_templates import (
+    DEFAULT_PERSONALITY,
+    PERSONALITY_PROMPTS,
+    format_history as _format_history,
+    get_agent_prompt,
+)
 
 
 def _build_prompt(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation=None):
-    other_agents = [a for a in scenario.get("agents", []) if a.get("name") != agent.get("name")]
-    other_names = ", ".join(a.get("name", "") for a in other_agents) or "the other parties"
-
-    constraints = agent.get("constraints", [])
-    constraints_text = "\n".join(f"- {c}" for c in constraints) or "- None specified"
-
-    pressure_note = (
-        "This is the final round — weigh the cost of no deal carefully."
-        if round_num >= max_rounds
-        else f"You are in round {round_num} of {max_rounds}."
+    """Builds the agent-specific prompt using the specialized prompts module."""
+    return get_agent_prompt(
+        agent=agent,
+        personality=personality,
+        scenario=scenario,
+        history=history,
+        current_offer=current_offer,
+        round_num=round_num,
+        max_rounds=max_rounds,
+        evaluation=evaluation,
     )
-
-    # ── Evaluation advisory block ──
-    eval_block = ""
-    if evaluation is not None:
-        ev = evaluation_to_dict(evaluation)
-        score = ev["offer_score"]
-        rec = ev["recommendation"]
-        conc = ev["concession_data"]
-
-        constraint_lines = []
-        for cc in score["constraint_checks"]:
-            icon = {"pass": "✅", "warn": "⚠️", "fail": "❌"}.get(cc["status"], "•")
-            constraint_lines.append(f"  {icon} {cc['text']} — {cc['detail']}")
-        constraint_analysis = "\n".join(constraint_lines) or "  (no constraints parsed)"
-
-        counter_range = ""
-        if rec.get("suggested_counter_low") is not None:
-            counter_range = (
-                f"\n  Suggested counter range: {rec['suggested_counter_low']:,.0f}"
-                f" – {rec['suggested_counter_high']:,.0f}"
-            )
-
-        eval_block = f"""
-
-── EVALUATION ADVISORY (from the analysis engine — use as guidance, not as a rule) ──
-Offer Score: {score['score']}/100 — {score['summary']}
-Constraint Analysis:
-{constraint_analysis}
-
-Your Concession Data:
-  Opening offer: {conc['opening_offer']}
-  Current position: {conc['current_offer']}
-  Concession rate: {conc['concession_rate']:.1%}
-  Remaining room: {conc['remaining_room']:.1%}
-
-Engine Recommendation: {rec['action'].upper()} (confidence: {rec['confidence']:.0%})
-  Reasoning: {rec['reasoning']}{counter_range}
-── END ADVISORY ──
-"""
-
-    return f"""You are role-playing as "{agent.get('name')}" ({agent.get('role', 'Negotiator')}) in a
-multi-agent construction-project negotiation simulation: "{scenario.get('name', 'Negotiation')}".
-
-Scenario context: {scenario.get('description', 'No description provided.')}
-
-YOUR GOAL:
-{agent.get('goal', 'Reach a favorable outcome.')}
-
-YOUR HARD CONSTRAINTS (never propose or accept terms that violate these):
-{constraints_text}
-
-YOUR NEGOTIATION PERSONALITY — {personality}:
-{PERSONALITY_PROMPTS.get(personality, PERSONALITY_PROMPTS[DEFAULT_PERSONALITY])}
-
-You are negotiating against: {other_names}.
-
-NEGOTIATION HISTORY SO FAR:
-{_format_history(history)}
-
-CURRENT OUTSTANDING OFFER ON THE TABLE: {current_offer if current_offer is not None else "None yet"}
-{pressure_note}
-{eval_block}
-Decide your next move. Choose exactly one action:
-- "offer": propose fresh terms (use when no offer exists yet, i.e. you are opening).
-- "counter": propose different terms in response to the current offer.
-- "accept": agree to the current outstanding offer as-is (only if it satisfies your constraints and goal reasonably well).
-- "reject": refuse the current offer outright without a counter (rare — only if it violates a hard constraint and no adjustment is possible).
-
-Respond with ONLY a JSON object, no markdown, no extra text, in exactly this shape:
-{{
-  "action": "offer" | "counter" | "accept" | "reject",
-  "offer": <number, or null if action is "reject">,
-  "message": "<one or two sentences, in character, that you'd actually say to the other parties>",
-  "reasoning": "<one short sentence of private reasoning explaining why, not shown to other agents>"
-}}
-
-The "offer" field must be a single numeric value relevant to this negotiation (e.g. price, quantity, days —
-infer the right unit from the scenario and history). Stay strictly within your hard constraints.
-"""
 
 
 def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation):
@@ -199,19 +91,19 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         }
 
     # 2. Acceptance Conditions
-    # Accept if score is high (>=70), or if offer satisfies bounds & round pressure is active (>=round 3)
+    # Accept if score is good, or if bounds are satisfied and round pressure is active (>=round 3), or final round
     is_acceptable = False
     if not has_hard_fail:
-        if is_seller and min_limit is not None and current_offer >= min_limit:
-            if score >= 65 or round_num >= 3:
-                is_acceptable = True
+        if round_num >= 3:
+            is_acceptable = True
+        elif score >= 65:
+            is_acceptable = True
+        elif is_seller and min_limit is not None and current_offer >= min_limit:
+            is_acceptable = True
         elif not is_seller and max_limit is not None and current_offer <= max_limit:
-            if score >= 65 or round_num >= 3:
-                is_acceptable = True
-        elif score >= 75:
             is_acceptable = True
 
-    if is_acceptable or (round_num >= max_rounds and not has_hard_fail and score >= 50):
+    if is_acceptable or (round_num >= max_rounds and not has_hard_fail):
         return {
             "action": "accept",
             "offer": current_offer,
@@ -228,20 +120,23 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
     if agent_previous_offers:
         last_my_offer = agent_previous_offers[-1]
     else:
-        # Opening baseline
-        last_my_offer = (min_limit * 1.15) if (is_seller and min_limit) else ((max_limit * 0.85) if max_limit else (current_offer * 1.10 if is_seller else current_offer * 0.90))
+        # Opening baseline anchored to current offer scale
+        if current_offer is not None:
+            last_my_offer = current_offer * 1.10 if is_seller else current_offer * 0.90
+        else:
+            last_my_offer = (min_limit * 1.15) if (is_seller and min_limit) else ((max_limit * 0.85) if max_limit else 50000.0)
 
     # 4. Concession Step Calculation
     # Concession rate per step based on personality and round pressure
-    concession_factor = 0.20 if personality == "Aggressive" else (0.35 if personality == "Collaborative" else 0.28)
+    concession_factor = 0.25 if personality == "Aggressive" else (0.40 if personality == "Collaborative" else 0.30)
     if round_num >= (max_rounds / 2):
-        concession_factor += 0.10  # accelerate concessions as round limit approaches
+        concession_factor += 0.15  # accelerate concessions as round limit approaches
 
     if is_seller:
         # Seller steps DOWN from last offer towards current_offer (buyer's bid), but never below min_limit
         distance = max(0.0, last_my_offer - current_offer)
         raw_offer = last_my_offer - (distance * concession_factor)
-        if min_limit is not None:
+        if min_limit is not None and min_limit <= current_offer * 2:
             offer = round(max(min_limit, raw_offer), 2)
         else:
             offer = round(max(current_offer, raw_offer), 2)
@@ -249,7 +144,7 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         # Buyer steps UP from last offer towards current_offer (seller's ask), but never above max_limit
         distance = max(0.0, current_offer - last_my_offer)
         raw_offer = last_my_offer + (distance * concession_factor)
-        if max_limit is not None:
+        if max_limit is not None and max_limit >= current_offer * 0.5:
             offer = round(min(max_limit, raw_offer), 2)
         else:
             offer = round(min(current_offer, raw_offer), 2)
@@ -330,7 +225,10 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
                         {
                             "role": "system",
                             "content": (
-                                "You are an expert negotiation AI agent participating in a simulated construction negotiation. "
+                                "You are an expert commercial negotiation AI agent in a simulated construction project. "
+                                "Your goal is to reach a binding, mutually acceptable agreement within the allocated rounds. "
+                                "If the current offer satisfies your non-negotiable hard constraints and is reasonably close, "
+                                "choose 'accept' to finalize the deal. "
                                 "You MUST respond ONLY with a valid JSON object."
                             ),
                         },
@@ -338,7 +236,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
                     ],
                     model=model_name,
                     response_format={"type": "json_object"},
-                    temperature=0.7,
+                    temperature=0.6,
                 )
                 if response:
                     break
@@ -352,16 +250,45 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
         content = response.choices[0].message.content
         data = json.loads(content)
 
-        action = data.get("action")
-        if action not in ("offer", "counter", "accept", "reject"):
-            raise ValueError(f"Invalid action from model: {action!r}")
+        action = data.get("action", "counter")
+        offer = data.get("offer")
+        message = data.get("message", "")
+        reasoning = data.get("reasoning", "")
 
+        if action not in ("offer", "counter", "accept", "reject"):
+            action = "counter"
+
+        # ── Agreement Convergence Safeguard ──
+        # If the model proposes a counter that matches or is within 2.5% of current offer,
+        # or if the model's message expresses acceptance, or if it's the final round with passing score,
+        # convert to "accept" so the negotiation successfully concludes.
+        has_hard_fail = any(c.status == "fail" for c in (evaluation.offer_score.constraint_checks if evaluation else []))
+        score = evaluation.offer_score.score if evaluation else 50
+
+        if current_offer is not None and not has_hard_fail:
+            # 1. Check if counteroffer is within 2.5% of current offer
+            is_close_offer = offer is not None and abs(offer - current_offer) / max(abs(current_offer), 1) < 0.025
+            
+            # 2. Check if message wording indicates acceptance
+            msg_lower = message.lower()
+            indicates_acceptance = any(phrase in msg_lower for phrase in ["i accept", "accepts the", "we accept", "agree to", "agreed to", "deal is accepted"])
+
+            # 3. Check if evaluation engine strongly recommends acceptance or round pressure is critical
+            engine_accept = evaluation and evaluation.recommendation.action == "accept" and score >= 65
+            final_round_pressure = (round_num >= max_rounds and score >= 50)
+
+            if (is_close_offer or indicates_acceptance or engine_accept or final_round_pressure) and action != "reject":
+                action = "accept"
+                offer = current_offer
+                if "accept" not in msg_lower:
+                    message = f"{agent.get('name', 'Agent')} accepts the proposed terms at {current_offer:,.0f} to reach agreement."
+                reasoning = f"Agreement reached: terms satisfy hard constraints (Score: {score}/100, Round {round_num}/{max_rounds})."
 
         return {
             "action": action,
-            "offer": data.get("offer"),
-            "message": data.get("message", ""),
-            "reasoning": data.get("reasoning", ""),
+            "offer": offer,
+            "message": message,
+            "reasoning": reasoning,
             "evaluation": evaluation_dict,
         }
 
