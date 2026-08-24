@@ -124,6 +124,14 @@ AGREEMENT & CONVERGENCE RULES (CRITICAL):
 4. **Walking Away (Action: "reject")**:
    - Use ONLY if the offer violates a non-negotiable hard constraint and no compromise is possible.
 
+STAY ON THE SAME TOPIC (CRITICAL):
+If there is a current offer on the table, your "unit" MUST match its unit above
+(e.g. if the offer is in "workers", your counter must also be a number of
+workers, not days or rupees). Multiple different quantities may be relevant
+to this negotiation (price, days, workers) — do not silently switch which one
+you're offering a number for. Only switch units if you are the one opening a
+fresh line of negotiation and say so explicitly in your message.
+
 DECISION INSTRUCTIONS:
 Choose exactly one action:
 - "offer": Propose fresh opening terms (only when no offer exists on the table yet).
@@ -137,6 +145,7 @@ Exact JSON schema:
 {{
   "action": "offer" | "counter" | "accept" | "reject",
   "offer": <numeric value matching current offer if accepted or new counter number, or null if action is "reject">,
+  "unit": "<short label for what the offer number measures, e.g. 'price per ton', 'workers', 'days' — must match the current offer's unit above unless you are deliberately changing topic>",
   "message": "<one or two realistic in-character sentences spoken to the other negotiating parties>",
   "reasoning": "<one short private sentence explaining strategic intent, hidden from other parties>"
 }}
@@ -155,7 +164,13 @@ def format_history(history: Optional[List[Dict[str, Any]]]) -> str:
 
     lines = []
     for entry in history:
-        offer_part = f" (offer: {entry['offer']})" if entry.get("offer") is not None else ""
+        offer_part = ""
+        if entry.get("offer") is not None:
+            unit = entry.get("unit")
+            offer_part = (
+                f" (offer: {entry['offer']} {unit})" if unit
+                else f" (offer: {entry['offer']})"
+            )
         lines.append(
             f"Round {entry.get('round', 1)} — {entry.get('agent', 'Agent')} "
             f"[{entry.get('action', 'offer')}]: {entry.get('message', '')}{offer_part}"
@@ -239,6 +254,7 @@ def build_prompt_from_template(
     round_num: int,
     max_rounds: int,
     evaluation: Optional[Any] = None,
+    current_offer_unit: Optional[str] = None,
 ) -> str:
     """Fills the MASTER_PROMPT_TEMPLATE with agent context, guidelines, and evaluation state."""
     agent_name = agent.get("name", "Negotiator")
@@ -258,7 +274,10 @@ def build_prompt_from_template(
         else f"You are in round {round_num} of {max_rounds}."
     )
 
-    current_offer_text = f"{current_offer:,.0f}" if current_offer is not None else "None yet (Opening round)"
+    if current_offer is not None:
+        current_offer_text = f"{current_offer:,.0f}" + (f" {current_offer_unit}" if current_offer_unit else "")
+    else:
+        current_offer_text = "None yet (Opening round)"
     eval_block = format_evaluation_advisory(evaluation)
     domain_guidelines = get_domain_guidelines_for_agent(agent)
 

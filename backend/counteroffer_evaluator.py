@@ -141,6 +141,36 @@ def _parse_numeric_bound(constraint_text: str) -> tuple[float | None, str]:
     return value, direction
 
 
+_UNIT_KEYWORDS = [
+    ("per ton", "price per ton"),
+    ("ton", "tons"),
+    ("per day", "days"),
+    ("day", "days"),
+    ("hour", "hours"),
+    ("worker", "workers"),
+    ("lakh", "rupees"),
+    ("crore", "rupees"),
+    ("cr", "rupees"),
+    ("budget", "rupees"),
+    ("price", "rupees"),
+    ("%", "percent"),
+]
+
+
+def parse_unit_label(constraint_text: str) -> str | None:
+    """
+    Guess a short, human-readable label for what a constraint's number
+    actually measures (price, tons, days, hours, workers, ...), based on
+    keywords in the constraint text. Used to match an offer to the right
+    constraint by *meaning*, not just by closest numeric value.
+    """
+    lower_text = constraint_text.lower()
+    for keyword, label in _UNIT_KEYWORDS:
+        if keyword in lower_text:
+            return label
+    return None
+
+
 # ──────────────────────────────────────────────
 # OfferEvaluator
 # ──────────────────────────────────────────────
@@ -153,6 +183,7 @@ class OfferEvaluator:
         agent: dict,
         current_offer: float | None,
         scenario: dict | None = None,
+        offer_unit: str | None = None,
     ) -> OfferScore:
         """
         Produce a 0-100 score for `current_offer` from the perspective of
@@ -187,14 +218,58 @@ class OfferEvaluator:
         checks: list[ConstraintCheck] = []
         passed = 0
 
-        for c_text in constraints:
-            bound, direction = _parse_numeric_bound(c_text)
+        # Parse every constraint up front. Some numeric constraints measure
+        # completely different things (price, quantity, days) even after
+        # excluding obvious non-offer terms above — a bare offer number has
+        # no explicit unit of its own. Figure out which constraint the
+        # offer most likely refers to: an exact unit match if the caller
+        # tells us one, otherwise whichever numeric bound is closest in
+        # value to the offer.
+        parsed = [_parse_numeric_bound(c_text) for c_text in constraints]
+        numeric_indices = [i for i, (bound, _) in enumerate(parsed) if bound is not None]
+
+        primary_index = None
+        if offer_unit:
+            unit_matches = [
+                i for i in numeric_indices
+                if parse_unit_label(constraints[i]) == offer_unit
+            ]
+            if unit_matches:
+                primary_index = min(
+                    unit_matches,
+                    key=lambda i: abs(current_offer - parsed[i][0]),
+                )
+
+        if primary_index is None and numeric_indices:
+            primary_index = min(
+                numeric_indices,
+                key=lambda i: abs(current_offer - parsed[i][0]),
+            )
+
+        for i, c_text in enumerate(constraints):
+            bound, direction = parsed[i]
 
             if bound is None:
                 # Non-numeric / qualitative constraint — assumed met
                 checks.append(ConstraintCheck(
                     text=c_text, status="pass",
                     detail="Qualitative constraint — assumed satisfied.",
+                ))
+                passed += 1
+                continue
+
+            if i != primary_index:
+                # A different numeric constraint that doesn't match this
+                # offer's likely unit — comparing unrelated quantities
+                # produces nonsense results, so leave it unevaluated
+                # instead of wrongly failing it.
+                checks.append(ConstraintCheck(
+                    text=c_text, status="pass",
+                    detail=(
+                        f"Likely measures a different quantity than the "
+                        f"current offer ({current_offer:,.0f}) — not "
+                        f"evaluated against it."
+                    ),
                 ))
                 passed += 1
                 continue
@@ -525,6 +600,7 @@ def evaluate_offer(
     current_offer: float | None,
     round_num: int,
     max_rounds: int,
+    offer_unit: str | None = None,
 ) -> EvaluationResult:
     """
     Run the full evaluation pipeline for one agent at one point in time.
@@ -532,7 +608,7 @@ def evaluate_offer(
     """
     agents = scenario.get("agents", [])
 
-    offer_score = OfferEvaluator.evaluate(agent, current_offer, scenario)
+    offer_score = OfferEvaluator.evaluate(agent, current_offer, scenario, offer_unit=offer_unit)
 
     all_concessions = ConcessionTracker.compute(history, agents)
     my_concession = ConcessionTracker.get_for_agent(

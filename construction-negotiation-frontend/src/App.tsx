@@ -1028,6 +1028,7 @@ type NegotiationHistoryEntry = {
   action: string;
   message: string;
   offer: number | null;
+  unit?: string | null;
 };
 
 type ConstraintCheckData = {
@@ -1077,6 +1078,7 @@ type NegotiationState = {
   history: NegotiationHistoryEntry[];
   round: number;
   current_offer: number | null;
+  current_offer_unit?: string | null;
   status: string;
 };
 
@@ -1139,6 +1141,7 @@ function NegotiationMonitor({
         history: data.state.history,
         round: data.state.round,
         current_offer: data.state.current_offer,
+        current_offer_unit: data.state.current_offer_unit,
         status: data.state.status,
       });
       setReasoning([]);
@@ -1172,6 +1175,7 @@ function NegotiationMonitor({
           round: state.round,
           current_agent_index: currentAgentIndex,
           current_offer: state.current_offer,
+          current_offer_unit: state.current_offer_unit,
           status: state.status,
         }),
       });
@@ -1185,6 +1189,7 @@ function NegotiationMonitor({
         history: data.state.history,
         round: data.state.round,
         current_offer: data.state.current_offer,
+        current_offer_unit: data.state.current_offer_unit,
         status: data.state.status,
       });
 
@@ -1430,7 +1435,9 @@ function NegotiationMonitor({
               action={entry.action}
               message={
                 entry.offer !== null && entry.offer !== undefined
-                  ? `${entry.message} (Offer: ${entry.offer.toLocaleString()})`
+                  ? `${entry.message} (Offer: ${entry.offer.toLocaleString()}${
+                      entry.unit ? ` ${entry.unit}` : ""
+                    })`
                   : entry.message
               }
               time={`Round ${entry.round}`}
@@ -1465,7 +1472,7 @@ function NegotiationMonitor({
             {!state
               ? "This scenario hasn't been run yet — click \"Run Negotiation\" to let the AI agents negotiate live."
               : state.status === "agreement"
-              ? `All active agents agreed on a settled target offer of ${state.current_offer?.toLocaleString() ?? "—"}.`
+              ? `All active agents agreed on a settled target offer of ${state.current_offer?.toLocaleString() ?? "—"}${state.current_offer_unit ? ` ${state.current_offer_unit}` : ""}.`
               : state.status === "max_rounds"
               ? "Agents could not align terms within the max round allocation."
               : "Negotiation in progress — generate the next turn or turn on auto-run to continue."}
@@ -1474,7 +1481,11 @@ function NegotiationMonitor({
 
         <div className="agreement-score">
           <strong>
-            {state?.current_offer ? state.current_offer.toLocaleString() : "—"}
+            {state?.current_offer
+              ? `${state.current_offer.toLocaleString()}${
+                  state.current_offer_unit ? ` ${state.current_offer_unit}` : ""
+                }`
+              : "—"}
           </strong>
           <span>
             {state && state.status !== "active" ? "Final Settled Offer" : "Current Offer"}

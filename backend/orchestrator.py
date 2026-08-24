@@ -10,6 +10,7 @@ class NegotiationOrchestrator:
         status="active",
         history=None,
         current_offer=None,
+        current_offer_unit=None,
     ):
 
         self.scenario = scenario
@@ -28,8 +29,12 @@ class NegotiationOrchestrator:
         # Conversation history
         self.history = list(history) if history else []
 
-        # Latest offer
+        # Latest offer, and what it's actually measuring (e.g. "workers",
+        # "days", "price per ton") — tracked alongside the number so
+        # agents and the evaluator can tell what's being negotiated,
+        # instead of just comparing bare numbers.
         self.current_offer = current_offer
+        self.current_offer_unit = current_offer_unit
 
         # Agents participating in negotiation
         self.agents = scenario.get("agents", [])
@@ -63,7 +68,8 @@ class NegotiationOrchestrator:
         agent_name,
         action,
         message,
-        offer=None
+        offer=None,
+        unit=None
     ):
 
         entry = {
@@ -71,14 +77,16 @@ class NegotiationOrchestrator:
             "agent": agent_name,
             "action": action,
             "message": message,
-            "offer": offer
+            "offer": offer,
+            "unit": unit
         }
 
         self.history.append(entry)
 
-        # Update latest offer
+        # Update latest offer (and what it's measuring)
         if offer is not None:
             self.current_offer = offer
+            self.current_offer_unit = unit
 
         return entry
 
@@ -114,6 +122,7 @@ class NegotiationOrchestrator:
             "round": self.round,
             "current_agent": self.get_current_agent(),
             "current_offer": self.current_offer,
+            "current_offer_unit": self.current_offer_unit,
             "history": self.history,
             "status": self.status
         }
@@ -139,5 +148,6 @@ class NegotiationOrchestrator:
             "round": self.round,
             "current_agent": self.get_current_agent(),
             "current_offer": self.current_offer,
+            "current_offer_unit": self.current_offer_unit,
             "history": self.history
         }

@@ -38,6 +38,7 @@ class TestRequest(BaseModel):
 class NegotiationStartRequest(BaseModel):
     scenario: dict
     max_rounds: int = 10
+    personalities: dict = {}
 
 class AgentTurnRequest(BaseModel):
     scenario: dict
@@ -47,6 +48,7 @@ class AgentTurnRequest(BaseModel):
     round: int = 1
     current_agent_index: int = 0
     current_offer: Optional[float] = None
+    current_offer_unit: Optional[str] = None
     status: str = "active"
 
 class EvaluateRequest(BaseModel):
@@ -55,6 +57,7 @@ class EvaluateRequest(BaseModel):
     scenario: dict
     history: list = []
     current_offer: Optional[float] = None
+    current_offer_unit: Optional[str] = None
     round: int = 1
     max_rounds: int = 10
 
@@ -122,17 +125,28 @@ def test_turns(request: NegotiationStartRequest):
     try:
         orchestrator = NegotiationOrchestrator(
             scenario=request.scenario,
-            max_rounds=request.max_rounds
+            max_rounds=request.max_rounds,
+            personalities=request.personalities,
         )
 
-        # Agent A makes a test offer
+        # Agent A's real AI-reasoned turn
         agent_a = orchestrator.get_current_agent()
+
+        turn_a = generate_agent_turn(
+            agent=agent_a,
+            personality=orchestrator.get_current_personality(),
+            scenario=orchestrator.scenario,
+            history=orchestrator.history,
+            current_offer=orchestrator.current_offer,
+            round_num=orchestrator.round,
+            max_rounds=orchestrator.max_rounds,
+        )
 
         orchestrator.add_message(
             agent_name=agent_a["name"],
-            action="offer",
-            message="Agent A makes an initial offer.",
-            offer=800
+            action=turn_a["action"],
+            message=turn_a["message"],
+            offer=turn_a["offer"]
         )
 
         # Move to Agent B
@@ -140,18 +154,28 @@ def test_turns(request: NegotiationStartRequest):
 
         agent_b = orchestrator.get_current_agent()
 
+        turn_b = generate_agent_turn(
+            agent=agent_b,
+            personality=orchestrator.get_current_personality(),
+            scenario=orchestrator.scenario,
+            history=orchestrator.history,
+            current_offer=orchestrator.current_offer,
+            round_num=orchestrator.round,
+            max_rounds=orchestrator.max_rounds,
+        )
+
         orchestrator.add_message(
             agent_name=agent_b["name"],
-            action="counter",
-            message="Agent B makes a counteroffer.",
-            offer=850
+            action=turn_b["action"],
+            message=turn_b["message"],
+            offer=turn_b["offer"]
         )
 
         # Move to next turn
         orchestrator.advance_turn()
 
         return {
-            "message": "Turn management test successful",
+            "message": "Turn management test successful (real AI)",
             "state": orchestrator.get_context()
         }
 
@@ -177,6 +201,7 @@ def next_turn(request: AgentTurnRequest):
             status=request.status,
             history=request.history,
             current_offer=request.current_offer,
+            current_offer_unit=request.current_offer_unit,
         )
 
         if not orchestrator.is_active():
@@ -197,6 +222,7 @@ def next_turn(request: AgentTurnRequest):
             current_offer=orchestrator.current_offer,
             round_num=orchestrator.round,
             max_rounds=orchestrator.max_rounds,
+            current_offer_unit=orchestrator.current_offer_unit,
         )
 
         orchestrator.add_message(
@@ -204,6 +230,7 @@ def next_turn(request: AgentTurnRequest):
             action=turn["action"],
             message=turn["message"],
             offer=turn["offer"],
+            unit=turn.get("unit"),
         )
 
         if turn["action"] == "accept":
@@ -239,6 +266,7 @@ def evaluate_current_offer(request: EvaluateRequest):
             current_offer=request.current_offer,
             round_num=request.round,
             max_rounds=request.max_rounds,
+            offer_unit=request.current_offer_unit,
         )
 
         return {

@@ -29,7 +29,7 @@ from prompt_templates import (
 )
 
 
-def _build_prompt(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation=None):
+def _build_prompt(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation=None, current_offer_unit=None):
     """Builds the agent-specific prompt using the specialized prompts module."""
     return get_agent_prompt(
         agent=agent,
@@ -40,10 +40,11 @@ def _build_prompt(agent, personality, scenario, history, current_offer, round_nu
         round_num=round_num,
         max_rounds=max_rounds,
         evaluation=evaluation,
+        current_offer_unit=current_offer_unit,
     )
 
 
-def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation):
+def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation, current_offer_unit=None):
     """
     Intelligent convergent negotiation engine. Calculates realistic numeric offers,
     directional concessions towards opponent positions, respects hard constraint bounds,
@@ -54,18 +55,21 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
     personality = personality or DEFAULT_PERSONALITY
 
     # Parse numeric bounds from agent constraints
-    from counteroffer_evaluator import _parse_numeric_bound
+    from counteroffer_evaluator import _parse_numeric_bound, parse_unit_label
     constraints = agent.get("constraints", [])
     min_limit = None
     max_limit = None
+    limit_unit = None  # what min_limit/max_limit actually measures
 
     for c in constraints:
         val, direction = _parse_numeric_bound(c)
         if val is not None:
             if direction == "lower":
                 min_limit = val
+                limit_unit = parse_unit_label(c) or limit_unit
             elif direction == "upper":
                 max_limit = val
+                limit_unit = parse_unit_label(c) or limit_unit
 
     # Determine if agent is Seller (wants higher price) or Buyer (wants lower price)
     is_seller = "Supplier" in agent_name or "Provider" in role or min_limit is not None
@@ -86,6 +90,7 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         return {
             "action": "offer",
             "offer": offer,
+            "unit": limit_unit,
             "message": message,
             "reasoning": reasoning,
         }
@@ -107,6 +112,7 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         return {
             "action": "accept",
             "offer": current_offer,
+            "unit": current_offer_unit or limit_unit,
             "message": f"{agent_name} accepts the outstanding offer of {current_offer:,.0f} to reach consensus.",
             "reasoning": f"Accepted terms as evaluation score ({score}/100) satisfies constraints and meets agreement target.",
         }
@@ -154,6 +160,7 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         return {
             "action": "accept",
             "offer": current_offer,
+            "unit": current_offer_unit or limit_unit,
             "message": f"{agent_name} accepts the proposed figure of {current_offer:,.0f} as terms have converged.",
             "reasoning": f"Concession gap closed to within 1.5% — accepting offer to conclude negotiation.",
         }
@@ -171,17 +178,22 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
     return {
         "action": "counter",
         "offer": offer,
+        "unit": current_offer_unit or limit_unit,
         "message": message,
         "reasoning": reasoning,
     }
 
 
-def generate_agent_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds):
+def generate_agent_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds, current_offer_unit=None):
     """Calls Groq AI to produce one AI-reasoned negotiation turn for `agent`.
 
-    Returns a dict: {"action", "offer", "message", "reasoning", "evaluation"}.
-    The "evaluation" key contains the structured evaluation data from the
-    counteroffer evaluator (score, concession, recommendation).
+    Returns a dict: {"action", "offer", "unit", "message", "reasoning", "evaluation"}.
+    The "unit" key is a short label for what "offer" actually measures (e.g.
+    "workers", "days", "price per ton") — tracked so agents stay anchored to
+    the same topic instead of silently drifting between different
+    quantities across turns. The "evaluation" key contains the structured
+    evaluation data from the counteroffer evaluator (score, concession,
+    recommendation).
     Never raises — uses smart algorithmic negotiation generation on fallback
     so the API endpoint always returns a fully realistic turn response.
     """
@@ -199,6 +211,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             current_offer=current_offer,
             round_num=round_num,
             max_rounds=max_rounds,
+            offer_unit=current_offer_unit,
         )
         evaluation_dict = evaluation_to_dict(evaluation)
     except Exception:
@@ -208,6 +221,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
         agent, personality, scenario, history,
         current_offer, round_num, max_rounds,
         evaluation=evaluation,
+        current_offer_unit=current_offer_unit,
     )
 
     try:
@@ -255,6 +269,21 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
         message = data.get("message", "")
         reasoning = data.get("reasoning", "")
 
+        # The model should echo a "unit" every turn. If it forgets: when
+        # continuing an existing offer, assume it meant to stay on the same
+        # topic; when opening fresh, guess from the agent's own constraints.
+        unit = data.get("unit")
+        if not unit:
+            if current_offer_unit:
+                unit = current_offer_unit
+            else:
+                from counteroffer_evaluator import parse_unit_label
+                for c in agent.get("constraints", []):
+                    guess = parse_unit_label(c)
+                    if guess:
+                        unit = guess
+                        break
+
         if action not in ("offer", "counter", "accept", "reject"):
             action = "counter"
 
@@ -280,6 +309,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             if (is_close_offer or indicates_acceptance or engine_accept or final_round_pressure) and action != "reject":
                 action = "accept"
                 offer = current_offer
+                unit = current_offer_unit or unit
                 if "accept" not in msg_lower:
                     message = f"{agent.get('name', 'Agent')} accepts the proposed terms at {current_offer:,.0f} to reach agreement."
                 reasoning = f"Agreement reached: terms satisfy hard constraints (Score: {score}/100, Round {round_num}/{max_rounds})."
@@ -287,6 +317,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
         return {
             "action": action,
             "offer": offer,
+            "unit": unit,
             "message": message,
             "reasoning": reasoning,
             "evaluation": evaluation_dict,
@@ -303,6 +334,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             round_num=round_num,
             max_rounds=max_rounds,
             evaluation=evaluation,
+            current_offer_unit=current_offer_unit,
         )
         turn["evaluation"] = evaluation_dict
         return turn
