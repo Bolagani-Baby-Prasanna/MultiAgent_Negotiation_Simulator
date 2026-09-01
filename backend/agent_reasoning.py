@@ -29,6 +29,55 @@ from prompt_templates import (
 )
 
 
+# Negotiations must show sustained back-and-forth before settling. The LLM does not
+# always honour the "don't settle early" prompt rule, so this floor is enforced in code:
+# no agent may accept before this round unless the round budget itself is smaller.
+MIN_ROUNDS_BEFORE_ACCEPT = 5
+
+
+def _forced_counter_offer(agent, history, current_offer):
+    """
+    Pick a counter value for an agent that wanted to accept too early.
+
+    Concedes a quarter of the way from the agent's own last offer toward the
+    current one, so the move is a genuine (and correctly directed) concession.
+    Agents with no position on the table yet fall back to a small step in the
+    direction that favours their side.
+    """
+    agent_name = agent.get("name", "")
+    my_last = None
+    for entry in reversed(history):
+        if entry.get("agent") == agent_name and entry.get("offer") is not None:
+            my_last = entry["offer"]
+            break
+
+    if my_last is not None and abs(my_last - current_offer) > 1e-9:
+        return round(my_last + 0.25 * (current_offer - my_last), 2)
+
+    is_seller = "Supplier" in agent_name or "Provider" in agent.get("role", "")
+    return round(current_offer * (1.03 if is_seller else 0.97), 2)
+
+
+def _enforce_min_rounds(turn, agent, history, current_offer, round_num, max_rounds):
+    """Downgrade a premature "accept" into a real counter so negotiations run their course."""
+    floor = min(MIN_ROUNDS_BEFORE_ACCEPT, max_rounds)
+    if turn.get("action") != "accept" or round_num >= floor or current_offer is None:
+        return turn
+
+    counter_offer = _forced_counter_offer(agent, history, current_offer)
+    turn["action"] = "counter"
+    turn["offer"] = counter_offer
+    turn["message"] = (
+        f"{agent.get('name', 'Agent')} sees merit in {current_offer:,.0f} but is not ready to "
+        f"close yet — countering at {counter_offer:,.0f} to secure better terms."
+    )
+    turn["reasoning"] = (
+        f"Terms are workable, but it is only round {round_num} of {max_rounds}; "
+        f"conceding gradually rather than settling early."
+    )
+    return turn
+
+
 def _build_prompt(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation=None, current_offer_unit=None):
     """Builds the agent-specific prompt using the specialized prompts module."""
     return get_agent_prompt(
@@ -96,12 +145,12 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         }
 
     # 2. Acceptance Conditions
-    # Accept if score is good, or if bounds are satisfied and round pressure is active (>=round 3), or final round
+    # Accept if score is very good, or if round pressure is active near the final round, or final round
     is_acceptable = False
     if not has_hard_fail:
-        if round_num >= 3:
+        if round_num >= max_rounds - 1:
             is_acceptable = True
-        elif score >= 65:
+        elif score >= 90:
             is_acceptable = True
         elif is_seller and min_limit is not None and current_offer >= min_limit:
             is_acceptable = True
@@ -288,25 +337,26 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             action = "counter"
 
         # ── Agreement Convergence Safeguard ──
-        # If the model proposes a counter that matches or is within 2.5% of current offer,
-        # or if the model's message expresses acceptance, or if it's the final round with passing score,
-        # convert to "accept" so the negotiation successfully concludes.
+        # If the model proposes a counter that is virtually identical to the current offer,
+        # or if the model's message expresses acceptance, or if the evaluation engine scores the
+        # offer very highly, or if it's the final round with a passing score, convert to "accept"
+        # so the negotiation successfully concludes rather than looping forever.
         has_hard_fail = any(c.status == "fail" for c in (evaluation.offer_score.constraint_checks if evaluation else []))
         score = evaluation.offer_score.score if evaluation else 50
 
         if current_offer is not None and not has_hard_fail:
-            # 1. Check if counteroffer is within 2.5% of current offer
-            is_close_offer = offer is not None and abs(offer - current_offer) / max(abs(current_offer), 1) < 0.025
-            
+            # 1. Check if counteroffer is within 1% of current offer (virtually identical)
+            is_close_offer = offer is not None and abs(offer - current_offer) / max(abs(current_offer), 1) < 0.01
+
             # 2. Check if message wording indicates acceptance
             msg_lower = message.lower()
             indicates_acceptance = any(phrase in msg_lower for phrase in ["i accept", "accepts the", "we accept", "agree to", "agreed to", "deal is accepted"])
 
-            # 3. Check if evaluation engine strongly recommends acceptance or round pressure is critical
-            engine_accept = evaluation and evaluation.recommendation.action == "accept" and score >= 65
+            # 3. Only true final-round pressure forces a close — a high score alone is not enough,
+            # since a comfortable score can legitimately occur well before both sides are done negotiating.
             final_round_pressure = (round_num >= max_rounds and score >= 50)
 
-            if (is_close_offer or indicates_acceptance or engine_accept or final_round_pressure) and action != "reject":
+            if (is_close_offer or indicates_acceptance or final_round_pressure) and action != "reject":
                 action = "accept"
                 offer = current_offer
                 unit = current_offer_unit or unit
@@ -314,7 +364,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
                     message = f"{agent.get('name', 'Agent')} accepts the proposed terms at {current_offer:,.0f} to reach agreement."
                 reasoning = f"Agreement reached: terms satisfy hard constraints (Score: {score}/100, Round {round_num}/{max_rounds})."
 
-        return {
+        turn = {
             "action": action,
             "offer": offer,
             "unit": unit,
@@ -322,6 +372,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             "reasoning": reasoning,
             "evaluation": evaluation_dict,
         }
+        return _enforce_min_rounds(turn, agent, history, current_offer, round_num, max_rounds)
 
     except Exception as e:
         # Fallback to smart algorithmic turn generator
@@ -337,4 +388,4 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             current_offer_unit=current_offer_unit,
         )
         turn["evaluation"] = evaluation_dict
-        return turn
+        return _enforce_min_rounds(turn, agent, history, current_offer, round_num, max_rounds)

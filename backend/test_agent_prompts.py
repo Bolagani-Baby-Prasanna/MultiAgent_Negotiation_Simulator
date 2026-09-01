@@ -219,7 +219,7 @@ def test_convergence_directives_in_prompt(mock_scenario, mock_history):
     )
     assert "AGREEMENT & CONVERGENCE RULES" in prompt
     assert 'Action: "accept"' in prompt
-    assert "within the given rounds" in prompt
+    assert "REACH CONSENSUS" in prompt
 
 
 def test_all_scenario_templates_reach_agreement():

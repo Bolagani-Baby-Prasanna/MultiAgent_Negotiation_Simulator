@@ -109,10 +109,10 @@ ROUND STATUS: {pressure_note}
 {evaluation_advisory_text}
 AGREEMENT & CONVERGENCE RULES (CRITICAL):
 1. **Closing the Deal (Action: "accept")**:
-   - The primary objective of this simulation is to REACH CONSENSUS within the given rounds.
-   - If the current outstanding offer satisfies your hard constraints and is reasonably close (within 2-5%) to your target position, you MUST choose "accept" rather than countering over negligible differences.
-   - If the Evaluation Advisory recommends "ACCEPT", or if the offer score is >= 65/100 without constraint violations, strongly prefer "accept".
-   - In Round 3+ or the Final Round: Deadlock causes project failure and severe delay penalties. If the offer does not violate a hard constraint, ACCEPT IT.
+   - The primary objective of this simulation is to REACH CONSENSUS, but only after sustained, realistic back-and-forth — a real negotiation does not settle in the first round or two.
+   - Only choose "accept" if the current outstanding offer satisfies your hard constraints AND is virtually identical (within 1%) to your target position.
+   - A high Evaluation Advisory score is NOT by itself a reason to accept early — keep countering with genuine concessions through the middle rounds even when an offer is workable, unless it is essentially identical to what you already asked for.
+   - In the FINAL ROUND only: Deadlock causes project failure and severe delay penalties. If the offer does not violate a hard constraint, ACCEPT IT.
 
 2. **Making Meaningful Progress (Action: "counter")**:
    - If you counter, your new offer MUST make a meaningful concession step (15% to 35% closer to the other party's position).

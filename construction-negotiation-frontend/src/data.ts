@@ -225,7 +225,7 @@ export const scenarioTemplates: ScenarioTemplate[] = [
       "Critical construction materials (steel) are running low due to supply chain disruptions. Agents must negotiate alternative procurement strategies, pricing, and delivery timelines to keep the project on track.",
     category: "Supply Chain",
     difficulty: "Medium",
-    estimatedRounds: 4,
+    estimatedRounds: 10,
     agents: [
       {
         name: "Supplier Agent",
@@ -273,7 +273,7 @@ export const scenarioTemplates: ScenarioTemplate[] = [
       "The project has exceeded its planned budget by 18% due to unforeseen ground conditions and material price inflation. Agents must negotiate cost-cutting measures, scope adjustments, and revised financial plans.",
     category: "Financial",
     difficulty: "Hard",
-    estimatedRounds: 5,
+    estimatedRounds: 10,
     agents: [
       {
         name: "Client Agent",
@@ -321,7 +321,7 @@ export const scenarioTemplates: ScenarioTemplate[] = [
       "A shortage of 40% skilled labor due to regional migration and competing projects threatens to delay construction by 3 weeks. Agents must negotiate workforce solutions, overtime policies, and schedule adjustments.",
     category: "Workforce",
     difficulty: "Medium",
-    estimatedRounds: 3,
+    estimatedRounds: 10,
     agents: [
       {
         name: "Contractor Agent",
@@ -369,7 +369,7 @@ export const scenarioTemplates: ScenarioTemplate[] = [
       "The client has requested the project completion date be moved forward by 4 weeks due to regulatory requirements. Agents must negotiate resource acceleration, overtime budgets, and schedule compression strategies.",
     category: "Timeline",
     difficulty: "Hard",
-    estimatedRounds: 5,
+    estimatedRounds: 10,
     agents: [
       {
         name: "Client Agent",
@@ -417,7 +417,7 @@ export const scenarioTemplates: ScenarioTemplate[] = [
       "The client has requested additional amenities including a rooftop garden and upgraded lobby finishes. Agents must negotiate the cost, schedule, and resource impact of these scope additions.",
     category: "Scope",
     difficulty: "Medium",
-    estimatedRounds: 4,
+    estimatedRounds: 10,
     agents: [
       {
         name: "Client Agent",
@@ -465,7 +465,7 @@ export const scenarioTemplates: ScenarioTemplate[] = [
       "Unexpected extended monsoon rains have halted outdoor construction for 12 days. Agents must negotiate schedule recovery plans, cost of idle resources, and revised milestone dates.",
     category: "External",
     difficulty: "Easy",
-    estimatedRounds: 3,
+    estimatedRounds: 10,
     agents: [
       {
         name: "Project Manager Agent",
@@ -513,7 +513,7 @@ export const scenarioTemplates: ScenarioTemplate[] = [
       "The primary tower crane has suffered a hydraulic failure, halting all high-rise lifting operations. Agents must negotiate repair vs. replacement decisions, rental alternatives, and schedule impact mitigation.",
     category: "Equipment",
     difficulty: "Medium",
-    estimatedRounds: 4,
+    estimatedRounds: 10,
     agents: [
       {
         name: "Contractor Agent",
