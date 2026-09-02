@@ -17,6 +17,54 @@ from dataclasses import dataclass, field
 
 
 # ──────────────────────────────────────────────
+# Deadlock Detection
+# ──────────────────────────────────────────────
+
+def detect_deadlock(history: list, n_rounds: int = 3) -> bool:
+    """Detect whether the negotiation has stalled.
+
+    Examines the last *n_rounds* offers (across all agents) in *history*.
+    If the price variation among those offers is exactly 0 **or** less than
+    1% of their mean value, the negotiation is considered deadlocked.
+
+    Args:
+        history:  The full negotiation history — a list of dicts, each
+                  containing at least an ``"offer"`` key (float | None).
+        n_rounds: How many most-recent offers to inspect (default 3).
+
+    Returns:
+        ``True`` if the recent offers show negligible movement (stalled),
+        ``False`` otherwise.
+    """
+    # Collect only entries that carry a numeric offer value.
+    recent_offers: list[float] = []
+    for entry in reversed(history):
+        offer = entry.get("offer")
+        if offer is not None:
+            recent_offers.append(float(offer))
+        if len(recent_offers) >= n_rounds:
+            break
+
+    # Need at least n_rounds data-points to judge stagnation.
+    if len(recent_offers) < n_rounds:
+        return False
+
+    mean_offer = sum(recent_offers) / len(recent_offers)
+
+    # Guard against a zero-mean edge-case (all offers are 0).
+    if mean_offer == 0:
+        # All recent offers are 0 — that's perfectly stalled.
+        return all(o == 0 for o in recent_offers)
+
+    # Max spread as a fraction of the mean value.
+    spread = max(recent_offers) - min(recent_offers)
+    variation_pct = spread / abs(mean_offer)
+
+    # Stalled when variation is exactly 0 or under 1%.
+    return variation_pct < 0.01
+
+
+# ──────────────────────────────────────────────
 # Data classes for structured results
 # ──────────────────────────────────────────────
 

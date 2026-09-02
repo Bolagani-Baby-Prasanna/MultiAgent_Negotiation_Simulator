@@ -1,3 +1,6 @@
+from counteroffer_evaluator import detect_deadlock
+
+
 class NegotiationOrchestrator:
 
     def __init__(
@@ -11,6 +14,8 @@ class NegotiationOrchestrator:
         history=None,
         current_offer=None,
         current_offer_unit=None,
+        is_deadlocked=False,
+        deadlock_rounds_remaining=None,
     ):
 
         self.scenario = scenario
@@ -35,6 +40,11 @@ class NegotiationOrchestrator:
         # instead of just comparing bare numbers.
         self.current_offer = current_offer
         self.current_offer_unit = current_offer_unit
+
+        # Deadlock tracking — persisted across stateless calls so the
+        # frontend can pass it back and the countdown survives round-trips.
+        self.is_deadlocked = is_deadlocked
+        self.deadlock_rounds_remaining = deadlock_rounds_remaining
 
         # Agents participating in negotiation
         self.agents = scenario.get("agents", [])
@@ -103,6 +113,27 @@ class NegotiationOrchestrator:
 
             self.current_agent_index = 0
 
+            # ── Deadlock check (runs once per completed round) ──
+            # Evaluate *before* incrementing the round counter so the
+            # check reflects the round that just finished.
+            stalled = detect_deadlock(self.history, n_rounds=3)
+
+            if stalled and not self.is_deadlocked:
+                # First detection — flag deadlock, start 2-round grace period.
+                self.is_deadlocked = True
+                self.deadlock_rounds_remaining = 2
+            elif stalled and self.is_deadlocked:
+                # Still stalled — count down grace rounds.
+                if self.deadlock_rounds_remaining is not None:
+                    self.deadlock_rounds_remaining -= 1
+                if self.deadlock_rounds_remaining is not None and self.deadlock_rounds_remaining <= 0:
+                    # Grace period exhausted — force breakdown.
+                    self.status = "breakdown"
+            elif not stalled and self.is_deadlocked:
+                # Agents made meaningful progress — clear the flag.
+                self.is_deadlocked = False
+                self.deadlock_rounds_remaining = None
+
             # Start next round
             self.round += 1
 
@@ -124,7 +155,9 @@ class NegotiationOrchestrator:
             "current_offer": self.current_offer,
             "current_offer_unit": self.current_offer_unit,
             "history": self.history,
-            "status": self.status
+            "status": self.status,
+            "is_deadlocked": self.is_deadlocked,
+            "deadlock_rounds_remaining": self.deadlock_rounds_remaining,
         }
 
     # ------------------------------------------------
@@ -149,5 +182,7 @@ class NegotiationOrchestrator:
             "current_agent": self.get_current_agent(),
             "current_offer": self.current_offer,
             "current_offer_unit": self.current_offer_unit,
-            "history": self.history
+            "history": self.history,
+            "is_deadlocked": self.is_deadlocked,
+            "deadlock_rounds_remaining": self.deadlock_rounds_remaining,
         }

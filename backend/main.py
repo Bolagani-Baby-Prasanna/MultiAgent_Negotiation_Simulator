@@ -50,6 +50,8 @@ class AgentTurnRequest(BaseModel):
     current_offer: Optional[float] = None
     current_offer_unit: Optional[str] = None
     status: str = "active"
+    is_deadlocked: bool = False
+    deadlock_rounds_remaining: Optional[int] = None
 
 class EvaluateRequest(BaseModel):
     agent: dict
@@ -202,6 +204,8 @@ def next_turn(request: AgentTurnRequest):
             history=request.history,
             current_offer=request.current_offer,
             current_offer_unit=request.current_offer_unit,
+            is_deadlocked=request.is_deadlocked,
+            deadlock_rounds_remaining=request.deadlock_rounds_remaining,
         )
 
         if not orchestrator.is_active():
@@ -223,6 +227,7 @@ def next_turn(request: AgentTurnRequest):
             round_num=orchestrator.round,
             max_rounds=orchestrator.max_rounds,
             current_offer_unit=orchestrator.current_offer_unit,
+            is_deadlocked=orchestrator.is_deadlocked,
         )
 
         orchestrator.add_message(
@@ -237,7 +242,11 @@ def next_turn(request: AgentTurnRequest):
             state = orchestrator.finish("agreement")
         else:
             orchestrator.advance_turn()
-            state = orchestrator.get_context()
+            # If the orchestrator detected a breakdown, report it.
+            if orchestrator.status == "breakdown":
+                state = orchestrator.finish("breakdown")
+            else:
+                state = orchestrator.get_context()
 
         return {
             "message": "Turn generated successfully",

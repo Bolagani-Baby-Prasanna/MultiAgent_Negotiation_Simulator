@@ -107,6 +107,7 @@ NEGOTIATION TIMELINE & HISTORY:
 CURRENT OUTSTANDING OFFER ON TABLE: {current_offer_text}
 ROUND STATUS: {pressure_note}
 {evaluation_advisory_text}
+{deadlock_warning}
 AGREEMENT & CONVERGENCE RULES (CRITICAL):
 1. **Closing the Deal (Action: "accept")**:
    - The primary objective of this simulation is to REACH CONSENSUS, but only after sustained, realistic back-and-forth — a real negotiation does not settle in the first round or two.
@@ -255,6 +256,7 @@ def build_prompt_from_template(
     max_rounds: int,
     evaluation: Optional[Any] = None,
     current_offer_unit: Optional[str] = None,
+    is_deadlocked: bool = False,
 ) -> str:
     """Fills the MASTER_PROMPT_TEMPLATE with agent context, guidelines, and evaluation state."""
     agent_name = agent.get("name", "Negotiator")
@@ -281,6 +283,17 @@ def build_prompt_from_template(
     eval_block = format_evaluation_advisory(evaluation)
     domain_guidelines = get_domain_guidelines_for_agent(agent)
 
+    # Build the deadlock warning block — injected as a high-priority
+    # system alert only when the orchestrator has flagged a stall.
+    if is_deadlocked:
+        deadlock_warning = (
+            "\n⚠️🚨 DEADLOCK DETECTED: The negotiation has stalled. "
+            "You must make a significant concession this turn to resolve "
+            "the deadlock, or the negotiation will permanently break down.\n"
+        )
+    else:
+        deadlock_warning = ""
+
     return MASTER_PROMPT_TEMPLATE.format(
         agent_name=agent_name,
         role=role,
@@ -296,6 +309,7 @@ def build_prompt_from_template(
         current_offer_text=current_offer_text,
         pressure_note=pressure_note,
         evaluation_advisory_text=eval_block,
+        deadlock_warning=deadlock_warning,
     )
 
 

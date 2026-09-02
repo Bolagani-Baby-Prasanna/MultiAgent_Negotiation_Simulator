@@ -78,7 +78,7 @@ def _enforce_min_rounds(turn, agent, history, current_offer, round_num, max_roun
     return turn
 
 
-def _build_prompt(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation=None, current_offer_unit=None):
+def _build_prompt(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation=None, current_offer_unit=None, is_deadlocked=False):
     """Builds the agent-specific prompt using the specialized prompts module."""
     return get_agent_prompt(
         agent=agent,
@@ -90,6 +90,7 @@ def _build_prompt(agent, personality, scenario, history, current_offer, round_nu
         max_rounds=max_rounds,
         evaluation=evaluation,
         current_offer_unit=current_offer_unit,
+        is_deadlocked=is_deadlocked,
     )
 
 
@@ -233,7 +234,7 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
     }
 
 
-def generate_agent_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds, current_offer_unit=None):
+def generate_agent_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds, current_offer_unit=None, is_deadlocked=False):
     """Calls Groq AI to produce one AI-reasoned negotiation turn for `agent`.
 
     Returns a dict: {"action", "offer", "unit", "message", "reasoning", "evaluation"}.
@@ -271,6 +272,7 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
         current_offer, round_num, max_rounds,
         evaluation=evaluation,
         current_offer_unit=current_offer_unit,
+        is_deadlocked=is_deadlocked,
     )
 
     try:
