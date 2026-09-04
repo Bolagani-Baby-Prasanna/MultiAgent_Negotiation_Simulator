@@ -1,0 +1,613 @@
+================================================================================
+MULTI-AGENT CONSTRUCTION NEGOTIATION SIMULATOR
+COMPLETE SYSTEM DOCUMENTATION, ARCHITECTURE, PARAMETER FLOW & SOURCE CODE GUIDE
+================================================================================
+
+TABLE OF CONTENTS:
+1. Executive Summary & System Architecture
+2. Complete File-by-File & Function-by-Function Breakdown with Supportive Code
+   2.1. backend/main.py (FastAPI REST Server)
+   2.2. backend/orchestrator.py (Turn & State Management)
+   2.3. backend/counteroffer_evaluator.py (Quantitative Scoring & Concession Engine)
+   2.4. backend/prompt_templates.py (Unified Prompt Engineering & Domain Guidelines)
+   2.5. backend/agent_reasoning.py (Groq LLM Reasoning & Convergence Safeguards)
+   2.6. Frontend Components (types.ts, data.ts, App.tsx)
+3. Parameter Flow: Where Parameters Originate and How They Travel
+4. Evaluation Metrics & Mathematical Formulas (With Supportive Code)
+5. Inter-Agent Communication & Turn Mechanics (With Supportive Code)
+6. Prompt Template Working Mechanism & Dynamic Injection
+
+
+================================================================================
+1. EXECUTIVE SUMMARY & SYSTEM ARCHITECTURE
+================================================================================
+
+In major construction projects, multi-party negotiations involving general
+contractors, material suppliers, finance gatekeepers, project managers, and
+clients require balancing conflicting objectives: unit prices, lead times,
+overtime costs, defect liabilities, cash-flow cycles, and deadline penalties.
+
+This application simulates commercial multi-agent negotiations powered by a
+hybrid intelligence architecture:
+1. Large Language Model Reasoning: Groq AI (groq/compound, qwen/qwen3.6-27b,
+   openai/gpt-oss-120b) to generate context-aware, realistic dialogue.
+2. Deterministic Algorithmic Evaluation Engine: Real-time constraint checking,
+   0-100 offer scoring, concession rate/velocity tracking, and advisory generation.
+3. Convergence Safeguards: Guarantees negotiations reach binding agreements
+   within allocated round limits without stalling or infinite micro-counter loops.
+
+HIGH-LEVEL EXECUTION FLOW:
+[React Frontend] (Selects Scenario & Agent Personalities)
+       │
+       ▼ (Sends HTTP POST /api/negotiation/next-turn with complete state snapshot)
+[FastAPI Backend: main.py]
+       │
+       ▼ (Instantiates NegotiationOrchestrator to manage active turn and round count)
+[NegotiationOrchestrator: orchestrator.py]
+       │
+       ▼ (Calls generate_agent_turn)
+[Agent Reasoning Engine: agent_reasoning.py]
+       ├──► [Deterministic Evaluator: counteroffer_evaluator.py]
+       │    Scores current offer (0-100), checks constraints, computes concession rate
+       │
+       ├──► [Prompt Template Engine: prompt_templates.py]
+       │    Injects domain playbooks, history transcript, and evaluation advisory
+       │
+       ├──► [Groq AI LLM API]
+       │    Produces structured JSON: action, offer, spoken message, private reasoning
+       │
+       └──► [Convergence Safeguards]
+            Ensures close counters (<=2.5%) or final-round offers convert to acceptance
+       │
+       ▼ (Logs turn in history, advances turn pointer or finishes with 'agreement')
+[FastAPI Response]
+       │
+       ▼ (Returns updated state and turn payload)
+[React Frontend] (Re-renders dialogue timeline, scores, and concession charts)
+
+
+================================================================================
+2. COMPLETE FILE-BY-FILE & FUNCTION-BY-FUNCTION BREAKDOWN WITH SUPPORTIVE CODE
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1. FILE: backend/main.py
+--------------------------------------------------------------------------------
+PURPOSE:
+The FastAPI server entry point. Exposes REST API endpoints for testing, starting
+negotiations, executing turns, and performing on-demand evaluation.
+
+PYDANTIC DATA SCHEMAS:
+--------------------------------------------------------------------------------
+class TestRequest(BaseModel):
+    prompt: str
+
+class NegotiationStartRequest(BaseModel):
+    scenario: dict
+    max_rounds: int = 10
+
+class AgentTurnRequest(BaseModel):
+    scenario: dict
+    max_rounds: int = 10
+    personalities: dict = {}
+    history: list = []
+    round: int = 1
+    current_agent_index: int = 0
+    current_offer: Optional[float] = None
+    status: str = "active"
+
+class EvaluateRequest(BaseModel):
+    agent: dict
+    personality: Optional[str] = "Collaborative"
+    scenario: dict
+    history: list = []
+    current_offer: Optional[float] = None
+    round: int = 1
+    max_rounds: int = 10
+
+FUNCTIONS & ENDPOINTS IN backend/main.py:
+--------------------------------------------------------------------------------
+1. health() -> GET /health
+   - Returns: {"status": "ok"}
+   - Purpose: Verifies backend service health.
+
+2. test_ai(body: TestRequest) -> POST /api/test
+   - Purpose: Verifies connectivity to Groq LLM candidate models.
+   - Supportive Code:
+     candidate_models = ["groq/compound", "qwen/qwen3.6-27b", "openai/gpt-oss-120b"]
+     for model_name in candidate_models:
+         try:
+             response = groq_client.chat.completions.create(
+                 messages=[{"role": "user", "content": body.prompt}],
+                 model=model_name,
+             )
+             return {"reply": response.choices[0].message.content}
+         except Exception:
+             continue
+
+3. start_negotiation(request: NegotiationStartRequest) -> POST /api/negotiation/start
+   - Purpose: Initializes fresh negotiation state without generating an agent turn.
+   - Supportive Code:
+     orchestrator = NegotiationOrchestrator(
+         scenario=request.scenario,
+         max_rounds=request.max_rounds
+     )
+     return {
+         "message": "Negotiation initialized successfully",
+         "state": orchestrator.get_context()
+     }
+
+4. test_turns(request: NegotiationStartRequest) -> POST /api/negotiation/test-turns
+   - Purpose: Simulates a deterministic 2-turn sequence to test turn-advancement logic.
+
+5. next_turn(request: AgentTurnRequest) -> POST /api/negotiation/next-turn
+   - Purpose: The primary execution endpoint. Stateless: receives full state, generates
+     one AI turn for the current agent, updates history/pointers, and returns state.
+   - Supportive Code:
+     orchestrator = NegotiationOrchestrator(
+         scenario=request.scenario,
+         max_rounds=request.max_rounds,
+         personalities=request.personalities,
+         round=request.round,
+         current_agent_index=request.current_agent_index,
+         status=request.status,
+         history=request.history,
+         current_offer=request.current_offer,
+     )
+     if not orchestrator.is_active():
+         return {"message": "Negotiation has already ended", "turn": None, "state": orchestrator.get_context()}
+
+     agent = orchestrator.get_current_agent()
+     personality = orchestrator.get_current_personality()
+
+     turn = generate_agent_turn(
+         agent=agent,
+         personality=personality,
+         scenario=orchestrator.scenario,
+         history=orchestrator.history,
+         current_offer=orchestrator.current_offer,
+         round_num=orchestrator.round,
+         max_rounds=orchestrator.max_rounds,
+     )
+
+     orchestrator.add_message(
+         agent_name=agent["name"],
+         action=turn["action"],
+         message=turn["message"],
+         offer=turn["offer"],
+     )
+
+     if turn["action"] == "accept":
+         state = orchestrator.finish("agreement")
+     else:
+         orchestrator.advance_turn()
+         state = orchestrator.get_context()
+
+     return {
+         "message": "Turn generated successfully",
+         "turn": {**turn, "agent": agent["name"]},
+         "state": state,
+     }
+
+6. evaluate_current_offer(request: EvaluateRequest) -> POST /api/negotiation/evaluate
+   - Purpose: On-demand scoring without advancing turns.
+   - Supportive Code:
+     result = evaluate_offer(
+         agent=request.agent,
+         personality=request.personality,
+         scenario=request.scenario,
+         history=request.history,
+         current_offer=request.current_offer,
+         round_num=request.round,
+         max_rounds=request.max_rounds,
+     )
+     return {"evaluation": evaluation_to_dict(result)}
+
+
+--------------------------------------------------------------------------------
+2.2. FILE: backend/orchestrator.py
+--------------------------------------------------------------------------------
+PURPOSE:
+Stateless negotiation orchestrator tracking turn sequence, agent round-robin,
+message history logs, active round count, and negotiation termination status.
+
+CLASS & METHODS:
+--------------------------------------------------------------------------------
+class NegotiationOrchestrator:
+    def __init__(self, scenario, max_rounds=10, personalities=None, round=1,
+                 current_agent_index=0, status="active", history=None, current_offer=None):
+        self.scenario = scenario
+        self.max_rounds = max_rounds
+        self.personalities = personalities or {}
+        self.round = round
+        self.current_agent_index = current_agent_index
+        self.status = status
+        self.history = list(history) if history else []
+        self.current_offer = current_offer
+        self.agents = scenario.get("agents", [])
+        if not self.agents:
+            raise ValueError("Scenario must contain at least one agent.")
+
+    def get_current_agent(self):
+        return self.agents[self.current_agent_index]
+
+    def get_current_personality(self):
+        agent_name = self.get_current_agent().get("name")
+        return self.personalities.get(agent_name)
+
+    def add_message(self, agent_name, action, message, offer=None):
+        entry = {
+            "round": self.round,
+            "agent": agent_name,
+            "action": action,
+            "message": message,
+            "offer": offer
+        }
+        self.history.append(entry)
+        if offer is not None:
+            self.current_offer = offer
+        return entry
+
+    def advance_turn(self):
+        self.current_agent_index += 1
+        if self.current_agent_index >= len(self.agents):
+            self.current_agent_index = 0
+            self.round += 1
+        if self.round > self.max_rounds:
+            self.status = "max_rounds"
+
+    def get_context(self):
+        return {
+            "scenario": self.scenario,
+            "round": self.round,
+            "current_agent": self.get_current_agent(),
+            "current_offer": self.current_offer,
+            "history": self.history,
+            "status": self.status
+        }
+
+    def is_active(self):
+        return self.status == "active"
+
+    def finish(self, status):
+        self.status = status
+        return {
+            "status": self.status,
+            "round": self.round,
+            "current_agent": self.get_current_agent(),
+            "current_offer": self.current_offer,
+            "history": self.history
+        }
+
+
+--------------------------------------------------------------------------------
+2.3. FILE: backend/counteroffer_evaluator.py
+--------------------------------------------------------------------------------
+PURPOSE:
+Provides deterministic quantitative evaluation, constraint parsing, 0-100 offer
+scoring, concession tracking (rate, velocity, remaining room), and decision engine
+recommendations (accept, counter, reject) with suggested price step ranges.
+
+DATA CLASSES:
+- ConstraintCheck: text, status ('pass'|'warn'|'fail'), detail
+- OfferScore: score (0-100), constraints_met, constraints_total, constraint_checks, distance_from_ideal, summary
+- ConcessionData: agent_name, opening_offer, current_offer, concession_rate, concession_velocity, remaining_room, offer_history
+- DecisionRecommendation: action, confidence, reasoning, suggested_counter_low, suggested_counter_high
+- EvaluationResult: agent_name, offer_score, concession_data, recommendation, all_concessions
+
+FUNCTIONS & CLASSES:
+--------------------------------------------------------------------------------
+1. _parse_numeric_bound(constraint_text: str) -> tuple[float | None, str]
+   - Uses regex to parse numeric values, applies Indian multipliers (Cr = 10,000,000, Lakh = 100,000),
+     and identifies bounds ('upper', 'lower', 'unknown').
+   - Supportive Code:
+     def _parse_numeric_bound(constraint_text: str) -> tuple[float | None, str]:
+         numbers = _NUMBER_RE.findall(constraint_text)
+         if not numbers:
+             return None, "unknown"
+         raw = numbers[0].replace(",", "")
+         value = float(raw)
+         lower_text = constraint_text.lower()
+         if "cr" in lower_text and value < 100:
+             value *= 10_000_000
+         elif "lakh" in lower_text and value < 10_000:
+             value *= 100_000
+         direction = "unknown"
+         for keyword, d in _DIRECTION_KEYWORDS.items():
+             if keyword in lower_text:
+                 direction = d
+                 break
+         return value, direction
+
+2. OfferEvaluator.evaluate(agent, current_offer, scenario) -> OfferScore
+   - Checks every constraint against current_offer:
+     * Upper bound: <= bound (PASS, +1.0), <= bound*1.05 (WARN, +0.5), > bound*1.05 (FAIL, +0.0)
+     * Lower bound: >= bound (PASS, +1.0), >= bound*0.95 (WARN, +0.5), < bound*0.95 (FAIL, +0.0)
+     * Qualitative: Assumed satisfied (PASS, +1.0)
+   - Final Score = round((passed_points / total_constraints) * 100)
+
+3. ConcessionTracker.compute(history, agents) -> list[ConcessionData]
+   - Computes:
+     * concession_rate = abs(current - opening) / abs(opening)
+     * concession_velocity = mean(abs(step_deltas)) / abs(opening)
+     * remaining_room = max(0.0, 1.0 - (rate / 0.40))
+
+4. DecisionEngine.recommend(...) -> DecisionRecommendation
+   - Compares OfferScore against personality thresholds:
+     * Aggressive: Accept >= 90 (>= 75 under pressure)
+     * Collaborative: Accept >= 75 (>= 55 under pressure)
+     * Risk-Averse: Accept >= 70 (>= 50 under pressure)
+   - Under deadline pressure (round / max_rounds > 0.7), acceptance threshold is relaxed.
+   - Recommends 'counter' with step range: current_offer +/- (current_offer * concession_step).
+
+5. evaluate_offer(...) -> EvaluationResult
+   - Pipeline running OfferEvaluator -> ConcessionTracker -> DecisionEngine.
+
+6. evaluation_to_dict(ev: EvaluationResult) -> dict
+   - Serializes dataclass instances to a JSON dictionary.
+
+
+--------------------------------------------------------------------------------
+2.4. FILE: backend/prompt_templates.py
+--------------------------------------------------------------------------------
+PURPOSE:
+Unified prompt engineering module containing personality prompts, domain-specific
+tactical playbooks for 5 roles, history transcript formatters, evaluation advisory
+formatters, and master prompt builder.
+
+KEY MODULE COMPONENTS:
+--------------------------------------------------------------------------------
+1. PERSONALITY_PROMPTS:
+   - "Aggressive": Pushes hard for maximum gain, concedes slowly, stays close to ideal outcome.
+   - "Collaborative": Win-win focus, makes early meaningful concessions within constraints.
+   - "Risk-Averse": Prioritizes safe, predictable outcomes, avoids deals that could fall through.
+
+2. AGENT_DOMAIN_GUIDELINES:
+   - "contractor": Trade-offs between price and quality specs (Fe-500 grade), lead times vs worker downtime.
+   - "supplier": Floor price defense, volume discounts, expedited delivery premiums, payment milestones.
+   - "finance": Budget caps, cash-flow payment cycles (45-60 days), liquidated damage liability.
+   - "project manager": Critical path milestones, scope mediation, safety and building code compliance.
+   - "client": Architectural finishes, hard handover dates, liquidated delay damages, quality audit sign-offs.
+
+3. MASTER_PROMPT_TEMPLATE:
+   Contains 10 structured sections:
+   - SCENARIO CONTEXT
+   - YOUR PRIMARY GOAL
+   - YOUR HARD CONSTRAINTS (Strictly non-negotiable)
+   - YOUR NEGOTIATION PERSONALITY
+   - YOUR DOMAIN PLAYBOOK & TACTICAL GUIDELINES
+   - NEGOTIATING PARTIES
+   - NEGOTIATION TIMELINE & HISTORY
+   - CURRENT OUTSTANDING OFFER ON TABLE
+   - ROUND STATUS (Deadline pressure indicators)
+   - EVALUATION ADVISORY (Injected quantitative scoring)
+   - AGREEMENT & CONVERGENCE RULES
+   - OUTPUT REQUIREMENT (Strict JSON schema)
+
+4. Helper Functions:
+   - format_history(history): Formats past turns into "Round X — Agent [action]: Message (offer: Y)".
+   - format_evaluation_advisory(evaluation): Formats score, constraint checklist icons (✅/⚠️/❌),
+     concession metrics, and counter range into an advisory text block.
+   - get_domain_guidelines_for_agent(agent): Auto-detects agent role and returns appropriate playbook.
+   - build_prompt_from_template(...): Populates MASTER_PROMPT_TEMPLATE with context.
+
+
+--------------------------------------------------------------------------------
+2.5. FILE: backend/agent_reasoning.py
+--------------------------------------------------------------------------------
+PURPOSE:
+Orchestrates the Groq LLM API invocation, structured JSON parsing, convergence
+safeguards, and offline algorithmic fallback generation.
+
+FUNCTIONS IN backend/agent_reasoning.py:
+--------------------------------------------------------------------------------
+1. _smart_algorithmic_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds, evaluation)
+   - Fallback engine that mathematically calculates realistic numeric offers if Groq is offline.
+   - Determines buyer vs. seller role via parsed constraints.
+   - Computes opening offers, concession factor steps:
+     * Aggressive: 0.25, Collaborative: 0.40, Risk-Averse: 0.30 (accelerated by +0.15 in late rounds).
+   - Converts counteroffers within 1.5% of current offer into instant acceptance.
+
+2. generate_agent_turn(agent, personality, scenario, history, current_offer, round_num, max_rounds)
+   - Pipeline:
+     Step 1: Runs evaluate_offer() to obtain quantitative metrics.
+     Step 2: Builds prompt via _build_prompt() (calling prompt_templates.py).
+     Step 3: Calls Groq client in json_object mode across candidate models:
+             candidate_models = ["groq/compound", "qwen/qwen3.6-27b", "openai/gpt-oss-120b"]
+     Step 4: Parses response: action, offer, message, reasoning.
+     Step 5: AGREEMENT CONVERGENCE SAFEGUARD:
+             has_hard_fail = any(c.status == "fail" for c in constraint_checks)
+             score = evaluation.offer_score.score
+             if current_offer is not None and not has_hard_fail:
+                 is_close_offer = offer is not None and abs(offer - current_offer) / current_offer < 0.025
+                 indicates_acceptance = any(phrase in message.lower() for phrase in ["i accept", "accepts the", "agree to"])
+                 engine_accept = (evaluation.recommendation.action == "accept" and score >= 65)
+                 final_round_pressure = (round_num >= max_rounds and score >= 50)
+                 if (is_close_offer or indicates_acceptance or engine_accept or final_round_pressure) and action != "reject":
+                     action = "accept"
+                     offer = current_offer
+     Step 6: Returns dict: {"action", "offer", "message", "reasoning", "evaluation"}
+             Falls back to _smart_algorithmic_turn on exception.
+
+
+--------------------------------------------------------------------------------
+2.6. FRONTEND COMPONENTS (React / Vite / TypeScript)
+--------------------------------------------------------------------------------
+1. construction-negotiation-frontend/src/types.ts:
+   - Interfaces for AgentConfig, ScenarioTemplate, CompletedReport, Negotiation, Resource.
+
+2. construction-negotiation-frontend/src/data.ts:
+   - 6 Predefined construction conflict scenarios:
+     * Steel Material Shortage
+     * Workforce Overtime Dispute
+     * Subcontractor Payment Dispute
+     * Schedule Delay & Liquidated Damages
+     * Concrete Grade Specification Change
+     * Equipment Rental Rate Escalation
+
+3. construction-negotiation-frontend/src/App.tsx:
+   - Manages state: currentScenario, personalities, history, round, currentOffer, status.
+   - Dispatches fetch('http://localhost:4000/api/negotiation/next-turn') with state payload.
+   - Renders interactive conversation stream, private reasoning tooltips, dynamic offer score gauges,
+     pass/fail constraint checklist, and concession velocity charts.
+
+
+================================================================================
+3. PARAMETER FLOW: WHERE PARAMETERS ORIGINATE & HOW THEY TRAVEL
+================================================================================
+
+Below is the exact tracing of all parameters from user input to backend models:
+
+1. User Selection in React UI:
+   - User picks a Scenario (from data.ts or custom creation).
+   - User selects Agent Personalities via UI dropdowns (e.g. Supplier: "Aggressive", Contractor: "Collaborative").
+   - User clicks "Next Turn" or "Auto Play".
+
+2. React Frontend State Bundle:
+   - App.tsx bundles the current state:
+     {
+       "scenario": currentScenario,
+       "personalities": { "Supplier Agent": "Aggressive", "Contractor Agent": "Collaborative" },
+       "history": negotiationHistory,
+       "round": currentRound,
+       "current_agent_index": activeAgentIndex,
+       "current_offer": currentOffer,
+       "max_rounds": 10,
+       "status": "active"
+     }
+
+3. HTTP Request & FastAPI Parsing:
+   - Sent via POST to /api/negotiation/next-turn.
+   - FastAPI parses JSON into AgentTurnRequest (Pydantic model in main.py).
+
+4. Orchestrator Initialization:
+   - main.py passes parameters to NegotiationOrchestrator(...).
+   - Orchestrator identifies:
+     * agent = orchestrator.get_current_agent()
+     * personality = orchestrator.get_current_personality()
+
+5. Evaluation Pipeline:
+   - agent_reasoning.py calls evaluate_offer(agent, personality, scenario, history, current_offer, round, max_rounds).
+   - counteroffer_evaluator.py extracts agent["constraints"] and current_offer.
+   - Computes OfferScore, ConcessionData, and DecisionRecommendation.
+
+6. Prompt Template Synthesis:
+   - prompt_templates.py receives agent, personality, scenario, history, current_offer, round, max_rounds, evaluation.
+   - Injects role guidelines, past dialogue transcript, and evaluation advisory.
+
+7. Groq AI LLM Execution:
+   - Groq receives prompt in JSON Mode.
+   - Returns: {"action": "counter", "offer": 52000, "message": "...", "reasoning": "..."}.
+
+8. Post-Processing & Convergence Safeguards:
+   - agent_reasoning.py validates offer against current_offer and constraint checks.
+   - Overrides action to 'accept' if offer is within 2.5% or agreement text is detected.
+
+9. State Update & Orchestrator Response:
+   - orchestrator.add_message(...) appends turn to history.
+   - If action == 'accept': orchestrator.finish('agreement').
+   - Else: orchestrator.advance_turn().
+   - Endpoint returns updated state and turn to React frontend.
+
+10. React UI Re-render:
+    - App.tsx receives {turn, state}.
+    - Appends turn to chat transcript, updates score gauge, updates line charts, and highlights next active agent.
+
+
+================================================================================
+4. EVALUATION METRICS & MATHEMATICAL FORMULAS
+================================================================================
+
+1. OFFER SCORE FORMULA (0 - 100):
+   Each constraint in agent["constraints"] is evaluated against current_offer:
+   
+   A. Upper Bound (Budget Cap, Max Price B):
+      Passed Points = 1.0   if current_offer <= B
+      Passed Points = 0.5   if B < current_offer <= B * 1.05  (Warning buffer)
+      Passed Points = 0.0   if current_offer > B * 1.05       (Hard Fail)
+
+   B. Lower Bound (Minimum Price, Margin Floor F):
+      Passed Points = 1.0   if current_offer >= F
+      Passed Points = 0.5   if F * 0.95 <= current_offer < F  (Warning buffer)
+      Passed Points = 0.0   if current_offer < F * 0.95       (Hard Fail)
+
+   C. Qualitative Constraint:
+      Passed Points = 1.0   (Assumed satisfied pending terms)
+
+   Final Score:
+      Score = round((Sum of Passed Points / Total Constraints) * 100)
+
+2. CONCESSION RATE FORMULA (r):
+      r = |O_current - O_opening| / |O_opening|
+
+3. CONCESSION VELOCITY FORMULA (v):
+      v = (1 / (n - 1)) * Sum_{i=1}^{n-1} ( |O_i - O_{i-1}| / |O_opening| )
+
+4. REMAINING CONCESSION ROOM:
+   Assuming a maximum realistic concession ceiling of 40% (0.40):
+      Remaining Room = max(0.0, 1.0 - (r / 0.40))
+
+5. DECISION ENGINE THRESHOLDS:
+   +---------------+------------------+--------------------+---------------------+-----------------+
+   | Personality   | Base Accept Min  | Counter Comfort    | Pressure Accept Min | Concession Step |
+   +---------------+------------------+--------------------+---------------------+-----------------+
+   | Aggressive    | Score >= 90      | Score >= 60        | Score >= 75         | 5% (0.05)       |
+   | Collaborative | Score >= 75      | Score >= 45        | Score >= 55         | 12% (0.12)      |
+   | Risk-Averse   | Score >= 70      | Score >= 40        | Score >= 50         | 10% (0.10)      |
+   +---------------+------------------+--------------------+---------------------+-----------------+
+   * Pressure triggers when (round_num / max_rounds) > 0.70.
+
+
+================================================================================
+5. INTER-AGENT COMMUNICATION & TURN MECHANICS
+================================================================================
+
+1. Turn Scheduling:
+   - Round-robin sequence: Agent 1 -> Agent 2 -> ... -> Agent N -> Agent 1 (Next Round).
+   - Strict turn alternation ensures all stakeholders represent their commercial interests.
+
+2. Public Dialogue vs. Private Reasoning:
+   - Spoken Message ("message"): Broadcasted to all parties in history. Contains in-character
+     professional arguments, technical justifications, and proposals.
+   - Private Rationale ("reasoning"): Secret internal thoughts evaluating profit margins,
+     pressure thresholds, and risk factors. Displayed in UI as an expandable drawer.
+
+3. Agreement Convergence & Anti-Deadlock Safeguards:
+   To prevent AI agents from looping endlessly on negligible differences (e.g. arguing over $10 on a $50,000 deal):
+   - 2.5% Proximity Rule: If an agent's counteroffer is within 2.5% of the outstanding offer,
+     and no hard constraints are failed, it is automatically converted into an 'accept'.
+   - Intent Phrasing Detection: If the generated text expresses agreement ("accepts the terms",
+     "we agree"), action is forced to 'accept'.
+   - Pressure Relaxation: In final rounds (round >= max_rounds), any offer with score >= 50
+     and no hard fails is accepted to avoid total project failure and liquidated delay damages.
+
+
+================================================================================
+6. PROMPT TEMPLATE WORKING MECHANISM & DYNAMIC INJECTION
+================================================================================
+
+Every AI call synthesizes a customized prompt by merging:
+1. Agent Identity & Scenario Context
+2. Hard Constraints (e.g., "- Minimum price ₹52,000 per ton")
+3. Selected Personality Behavioral Guidelines
+4. Domain Playbook (e.g., Supplier defense vs Contractor workforce balance)
+5. Full Conversation History Transcript
+6. Algorithmic Evaluation Advisory:
+   - 0-100 Score
+   - Constraint Checklist (Pass/Warn/Fail)
+   - Concession Rate & Remaining Room
+   - Algorithmic Engine Recommendation (ACCEPT / COUNTER / REJECT) & Suggested Counter Range
+7. Agreement & Convergence Mandates
+8. Strict JSON Output Specification:
+   {
+     "action": "offer" | "counter" | "accept" | "reject",
+     "offer": <numeric_value_or_null>,
+     "message": "<spoken_dialogue>",
+     "reasoning": "<private_strategic_thoughts>"
+   }
+
+This architecture guarantees that the LLM is both numerically grounded by deterministic
+math algorithms and creatively articulate in commercial negotiations.
+================================================================================
+END OF DOCUMENTATION
+================================================================================

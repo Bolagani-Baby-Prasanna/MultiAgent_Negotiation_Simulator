@@ -1,12 +1,10 @@
 export type Page =
-  | "dashboard"
-  | "projects"
-  | "scenarios"
-  | "negotiations"
-  | "resources"
-  | "reports"
-  | "agents"
-  | "settings";
+  | "Dashboard"
+  | "Scenarios"
+  | "Agent Configuration"
+  | "Negotiation Arena"
+  | "Reports & Analytics"
+  | "Settings";
 
 export type Status =
   | "Active"
@@ -41,7 +39,7 @@ export interface Resource {
   status: Status;
 }
 
-/* ── Task 3: Scenario Selection Module ── */
+/* ── Scenario & Agent Configs ── */
 
 export interface AgentConfig {
   name: string;
@@ -62,6 +60,8 @@ export interface ScenarioTemplate {
   agents: AgentConfig[];
 }
 
+export type Personality = "Aggressive" | "Collaborative" | "Risk-Averse";
+
 export interface CompletedReport {
   id: string;
   scenarioName: string;
@@ -72,4 +72,83 @@ export interface CompletedReport {
   outcome: "Successful" | "No Agreement" | "Under Review";
   timestamp: string;
   historySummary: string[];
+}
+
+/* ── Negotiation Arena & Reasoning Types ── */
+
+export interface NegotiationHistoryEntry {
+  round: number;
+  agent: string;
+  action: "offer" | "counter" | "accept" | "reject" | string;
+  message: string;
+  offer: number | null;
+  unit?: string | null;
+}
+
+export interface ConstraintCheckData {
+  text: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+}
+
+export interface OfferScoreData {
+  score: number;
+  constraints_met: number;
+  constraints_total: number;
+  constraint_checks: ConstraintCheckData[];
+  distance_from_ideal: number;
+  summary: string;
+}
+
+export interface ConcessionDataItem {
+  agent_name: string;
+  opening_offer: number | null;
+  current_offer: number | null;
+  concession_rate: number;
+  concession_velocity: number;
+  remaining_room: number;
+  offer_history: number[];
+}
+
+export interface RecommendationData {
+  action: "accept" | "counter" | "reject" | string;
+  confidence: number;
+  reasoning: string;
+  suggested_counter_low: number | null;
+  suggested_counter_high: number | null;
+}
+
+export interface EvaluationData {
+  agent_name: string;
+  offer_score: OfferScoreData;
+  concession_data: ConcessionDataItem;
+  recommendation: RecommendationData;
+  all_concessions: ConcessionDataItem[];
+}
+
+export interface NegotiationState {
+  scenario: ScenarioTemplate;
+  max_rounds: number;
+  history: NegotiationHistoryEntry[];
+  round: number;
+  current_agent_index?: number;
+  current_offer: number | null;
+  current_offer_unit?: string | null;
+  status: "active" | "agreement" | "max_rounds" | "breakdown" | string;
+  is_deadlocked?: boolean;
+  deadlock_rounds_remaining?: number | null;
+}
+
+export interface AgentStanceInfo {
+  name: string;
+  role: string;
+  icon: string;
+  personality: Personality;
+  status: "active_speaking" | "waiting" | "accepted" | "conceding" | "firm";
+  openingOffer: number | null;
+  currentOffer: number | null;
+  unit?: string | null;
+  concessionRate: number;
+  sentiment: "Firm" | "Flexible" | "Collaborating" | "Cautious" | "Agreed";
+  constraintsMetRatio: string;
 }

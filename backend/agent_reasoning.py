@@ -67,13 +67,15 @@ def _enforce_min_rounds(turn, agent, history, current_offer, round_num, max_roun
     counter_offer = _forced_counter_offer(agent, history, current_offer)
     turn["action"] = "counter"
     turn["offer"] = counter_offer
+    unit_str = f" {turn.get('unit')}" if turn.get("unit") else ""
     turn["message"] = (
-        f"{agent.get('name', 'Agent')} sees merit in {current_offer:,.0f} but is not ready to "
-        f"close yet — countering at {counter_offer:,.0f} to secure better terms."
+        f"I see merit in the proposal of {current_offer:,.0f}{unit_str}, and we are certainly moving in the right direction. "
+        f"However, given our current project constraints and operational margins, we cannot close prematurely without protecting our core requirements. "
+        f"I am putting forward a revised counter-proposal of {counter_offer:,.0f}{unit_str} so we can continue working toward a balanced consensus."
     )
     turn["reasoning"] = (
-        f"Terms are workable, but it is only round {round_num} of {max_rounds}; "
-        f"conceding gradually rather than settling early."
+        f"Terms are workable, but as we are only in round {round_num} of {max_rounds}, "
+        f"we are making a progressive concession ({counter_offer:,.0f}) to secure optimal terms rather than settling early."
     )
     return turn
 
@@ -128,6 +130,7 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
     has_hard_fail = any(c.status == "fail" for c in (evaluation.offer_score.constraint_checks if evaluation else []))
 
     # 1. Opening Move (No current offer on table)
+    unit_str = f" {limit_unit}" if limit_unit else ""
     if current_offer is None:
         if is_seller:
             base_offer = (min_limit * 1.15) if min_limit else 58000.0
@@ -135,7 +138,40 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
             base_offer = (max_limit * 0.85) if max_limit else 48000.0
 
         offer = round(base_offer, 2)
-        message = f"As {role}, {agent_name} opens negotiations with an initial proposal of {offer:,.0f}."
+        
+        # Natural spoken opening based on role
+        if "supplier" in agent_name.lower() or "provider" in role.lower():
+            message = (
+                f"Thank you everyone for joining today's session. Speaking on behalf of our logistics and production team, "
+                f"our current manufacturing commitments and raw material costs require a solid commercial baseline. "
+                f"To guarantee dedicated factory capacity and priority dispatch, I am proposing an opening figure of {offer:,.0f}{unit_str}. "
+                f"Let's discuss how we can schedule deliveries to keep your job site operating seamlessly."
+            )
+        elif "contractor" in agent_name.lower():
+            message = (
+                f"Good morning everyone. Looking closely at our active work-fronts and structural deadlines, securing these resources without downtime is our highest priority. "
+                f"We have analyzed our allocated project budget and manpower requirements, and I am putting an opening proposal of {offer:,.0f}{unit_str} on the table. "
+                f"We are prepared to collaborate on flexible delivery windows and milestones to ensure this is feasible for all parties."
+            )
+        elif "finance" in agent_name.lower():
+            message = (
+                f"From the financial management perspective, our primary obligation is ensuring all project commitments remain strictly within our approved baseline. "
+                f"We cannot afford unbudgeted variances or premature depletion of our contingency reserve. "
+                f"I am opening our allocation at {offer:,.0f}{unit_str}, and we will require structured milestone-based billing to proceed."
+            )
+        elif "project manager" in agent_name.lower():
+            message = (
+                f"Looking at our master construction schedule, maintaining the critical path sequence is essential to avoid compounding milestone delays. "
+                f"We need an aligned arrangement where work does not stall on-site while respecting our cost framework. "
+                f"I'd like to table an opening target of {offer:,.0f}{unit_str} to establish our baseline for discussion."
+            )
+        else:
+            message = (
+                f"As {role}, our objective is to ensure quality deliverables while respecting our milestone and cost constraints. "
+                f"I am opening our formal proposal at {offer:,.0f}{unit_str}. "
+                f"I look forward to constructive dialogue so we can achieve a workable consensus."
+            )
+
         reasoning = f"Opening proposal calculated based on target position and {personality} strategy."
         return {
             "action": "offer",
@@ -158,12 +194,20 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         elif not is_seller and max_limit is not None and current_offer <= max_limit:
             is_acceptable = True
 
+    effective_unit = current_offer_unit or limit_unit
+    effective_unit_str = f" {effective_unit}" if effective_unit else ""
+
     if is_acceptable or (round_num >= max_rounds and not has_hard_fail):
         return {
             "action": "accept",
             "offer": current_offer,
-            "unit": current_offer_unit or limit_unit,
-            "message": f"{agent_name} accepts the outstanding offer of {current_offer:,.0f} to reach consensus.",
+            "unit": effective_unit,
+            "message": (
+                f"I've thoroughly reviewed the latest terms with our team, and the current proposal of {current_offer:,.0f}{effective_unit_str} "
+                f"satisfies our core requirements while keeping the project on schedule. "
+                f"I appreciate everyone's willingness to make meaningful concessions over these discussions. "
+                f"We accept this offer and are ready to finalize the agreement and proceed with execution."
+            ),
             "reasoning": f"Accepted terms as evaluation score ({score}/100) satisfies constraints and meets agreement target.",
         }
 
@@ -210,25 +254,47 @@ def _smart_algorithmic_turn(agent, personality, scenario, history, current_offer
         return {
             "action": "accept",
             "offer": current_offer,
-            "unit": current_offer_unit or limit_unit,
-            "message": f"{agent_name} accepts the proposed figure of {current_offer:,.0f} as terms have converged.",
+            "unit": effective_unit,
+            "message": (
+                f"We are now virtually aligned on terms, and the proposed figure of {current_offer:,.0f}{effective_unit_str} represents a workable balance for our side. "
+                f"Rather than continuing back-and-forth on minor margins, I am pleased to accept this offer so we can mobilize our teams immediately."
+            ),
             "reasoning": f"Concession gap closed to within 1.5% — accepting offer to conclude negotiation.",
         }
 
     # 6. Dialogue & Reasoning
+    offer_unit_str = f" {effective_unit}" if effective_unit else ""
     if personality == "Aggressive":
-        message = f"{agent_name} maintains strong margin objectives but proposes a revised counteroffer of {offer:,.0f}."
+        message = (
+            f"I hear what you're proposing, but that figure cuts too heavily into our operational margins and ignores the true costs on our end. "
+            f"We have strict quality and safety thresholds that cannot be compromised. "
+            f"However, in the spirit of making progress, I am willing to adjust our counter-offer to {offer:,.0f}{offer_unit_str}. "
+            f"This is a fair, defensible position that reflects our commitment to delivering without cutting corners."
+        )
     elif personality == "Collaborative":
-        message = f"{agent_name} makes a constructive concession and counter-proposes {offer:,.0f} to align positions."
+        message = (
+            f"I appreciate the flexibility you've demonstrated in your recent proposals, and I agree we need to bridge this gap to keep the site moving. "
+            f"We've reassessed our internal cost buffers and are prepared to take a meaningful step towards your numbers. "
+            f"I would like to counter with {offer:,.0f}{offer_unit_str}. "
+            f"If we can meet at this level, it creates a genuine win-win that protects the schedule and meets everyone's expectations."
+        )
     else:
-        message = f"{agent_name} proposes a measured compromise at {offer:,.0f} to manage project risk."
+        message = (
+            f"We've analyzed the outstanding proposal against our risk limits and contingency allocations. "
+            f"Moving too quickly or stretching our bounds could expose the project to downstream compliance issues. "
+            f"To keep risk strictly managed while showing steady progress, I am putting forward a counter of {offer:,.0f}{offer_unit_str}. "
+            f"This gives us a safe, predictable baseline that all stakeholders can rely on."
+        )
 
-    reasoning = f"Counteroffer {offer:,.0f} calculated via convergent concession strategy (Score: {score}/100, Round {round_num}/{max_rounds})."
+    reasoning = (
+        f"Counteroffer {offer:,.0f}{offer_unit_str} calculated via convergent concession strategy "
+        f"(Score: {score}/100, Round {round_num}/{max_rounds}, personality: {personality})."
+    )
 
     return {
         "action": "counter",
         "offer": offer,
-        "unit": current_offer_unit or limit_unit,
+        "unit": effective_unit,
         "message": message,
         "reasoning": reasoning,
     }
@@ -361,9 +427,13 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             if (is_close_offer or indicates_acceptance or final_round_pressure) and action != "reject":
                 action = "accept"
                 offer = current_offer
-                unit = current_offer_unit or unit
                 if "accept" not in msg_lower:
-                    message = f"{agent.get('name', 'Agent')} accepts the proposed terms at {current_offer:,.0f} to reach agreement."
+                    unit_str = f" {unit}" if unit else ""
+                    message = (
+                        f"We have reached a sensible alignment on terms. The proposed figure of {current_offer:,.0f}{unit_str} "
+                        f"satisfies our project requirements and provides the stability we need to move forward. "
+                        f"I am pleased to formally accept this proposal so we can finalize our agreement and proceed with execution immediately."
+                    )
                 reasoning = f"Agreement reached: terms satisfy hard constraints (Score: {score}/100, Round {round_num}/{max_rounds})."
 
         turn = {

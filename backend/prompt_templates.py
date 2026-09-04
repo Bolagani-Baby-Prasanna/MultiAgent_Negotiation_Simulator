@@ -140,6 +140,13 @@ Choose exactly one action:
 - "accept": Agree to the current outstanding offer as-is and finalize the deal.
 - "reject": Walk away / terminate without agreement (rare).
 
+SPOKEN DIALOGUE & CONVERSATIONAL STYLE INSTRUCTIONS (CRITICAL):
+- Speak directly in the FIRST PERSON ("I", "we", "our team") as if speaking live in a high-stakes construction boardroom or project site coordination meeting.
+- Address the other stakeholders directly by role or name (e.g., "Look, Contractor...", "From Finance's perspective...", "I hear your concerns, Supplier...").
+- Do NOT write brief third-person summaries like "Contractor counters with 50,000".
+- Provide a rich, detailed conversational response of 3 to 5 natural spoken sentences explaining your operational perspective, budget reality, schedule constraints, or supply chain trade-offs before clearly stating your proposed number.
+- Sound like a seasoned construction professional with authentic industry vocabulary (e.g., site mobilization, lead times, critical path, overtime premiums, cash flow, contingency buffer, structural Fe-500 specs, liquidated damages).
+
 OUTPUT REQUIREMENT:
 Respond with ONLY a valid JSON object, no markdown formatting, no code fencing, no extra text.
 Exact JSON schema:
@@ -147,8 +154,8 @@ Exact JSON schema:
   "action": "offer" | "counter" | "accept" | "reject",
   "offer": <numeric value matching current offer if accepted or new counter number, or null if action is "reject">,
   "unit": "<short label for what the offer number measures, e.g. 'price per ton', 'workers', 'days' — must match the current offer's unit above unless you are deliberately changing topic>",
-  "message": "<one or two realistic in-character sentences spoken to the other negotiating parties>",
-  "reasoning": "<one short private sentence explaining strategic intent, hidden from other parties>"
+  "message": "<3 to 5 realistic, natural, in-character spoken sentences in first person ('I'/'we') directly addressing the other negotiating parties with rich reasoning and trade-offs>",
+  "reasoning": "<2 to 3 sentences of internal private tactical chain-of-thought analysis explaining constraint score, concession math, and risk posture>"
 }}
 
 Note on the "offer" field: Provide a single clean numeric value matching the scenario's metric (e.g. price per unit, total budget, quantity, days).
