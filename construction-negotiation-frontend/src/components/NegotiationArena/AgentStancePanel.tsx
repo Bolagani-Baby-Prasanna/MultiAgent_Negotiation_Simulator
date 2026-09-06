@@ -7,6 +7,7 @@ interface AgentStancePanelProps {
   state: NegotiationState | null;
   evaluations: (EvaluationData | null)[];
   isThinking: boolean;
+  humanRole?: string;
 }
 
 export const AgentStancePanel: React.FC<AgentStancePanelProps> = ({
@@ -15,6 +16,7 @@ export const AgentStancePanel: React.FC<AgentStancePanelProps> = ({
   state,
   evaluations,
   isThinking,
+  humanRole,
 }) => {
   if (!template) return null;
 
@@ -71,19 +73,22 @@ export const AgentStancePanel: React.FC<AgentStancePanelProps> = ({
             }
 
             const isAgreed = lastEntry?.action === "accept" || state?.status === "agreement";
+            const isHumanAgent = humanRole === agent.name;
 
             return (
               <div
                 key={agent.name}
                 className={`agent-stance-card ${
                   isSpeaking ? "is-active-speaker" : ""
-                } ${isAgreed ? "is-agreed" : ""}`}
+                } ${isAgreed ? "is-agreed" : ""} ${isHumanAgent ? "is-human-agent-card" : ""}`}
               >
                 <div className="agent-stance-header">
                   <div className="agent-identity">
                     <div className="agent-stance-avatar">{agent.icon}</div>
                     <div className="agent-identity-meta">
-                      <strong>{agent.name}</strong>
+                      <strong>
+                        {agent.name} {isHumanAgent && <span className="human-you-tag">🎮 YOU</span>}
+                      </strong>
                       <span>{agent.role}</span>
                     </div>
                   </div>

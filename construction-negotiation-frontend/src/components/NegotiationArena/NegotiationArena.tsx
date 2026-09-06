@@ -3,6 +3,7 @@ import type { CompletedReport, EvaluationData, NegotiationState, Personality, Sc
 import { AgentStancePanel } from "./AgentStancePanel";
 import { ArenaControls } from "./ArenaControls";
 import { ChatTranscript } from "./ChatTranscript";
+import { HumanInputTray } from "./HumanInputTray";
 import { RoundMetricsPanel } from "./RoundMetricsPanel";
 import "./arena.css";
 
@@ -35,6 +36,19 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
   const [error, setError] = useState("");
   const [reportSaved, setReportSaved] = useState(false);
 
+  // Human Participant Practice Mode State
+  const [practiceMode, setPracticeMode] = useState<boolean>(false);
+  const [humanRole, setHumanRole] = useState<string>(
+    template?.agents[0]?.name || "Contractor Agent"
+  );
+
+  // Update default human role when scenario changes
+  useEffect(() => {
+    if (template && template.agents.length > 0) {
+      setHumanRole(template.agents[0].name);
+    }
+  }, [template]);
+
   // Reset arena state when switching scenarios
   useEffect(() => {
     setState(null);
@@ -44,6 +58,16 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     setError("");
     setReportSaved(false);
   }, [selectedScenario]);
+
+  // Determine current active agent and whether it's human's turn
+  const currentAgentIndex = state && template
+    ? state.history.length % template.agents.length
+    : 0;
+  const currentAgent = template?.agents[currentAgentIndex];
+  const isHumanTurn =
+    practiceMode &&
+    state?.status === "active" &&
+    currentAgent?.name === humanRole;
 
   // Start a fresh negotiation
   const startNegotiation = async () => {
@@ -79,7 +103,11 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
       });
       setReasoning([]);
       setEvaluations([]);
-      showToast(`Negotiation Arena launched for "${template.name}"!`);
+      showToast(
+        practiceMode
+          ? `🎮 Practice Mode active — playing as ${humanRole}!`
+          : `Negotiation Arena launched for "${template.name}"!`
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to start negotiation."
@@ -89,31 +117,35 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     }
   };
 
+  const stateRef = React.useRef<NegotiationState | null>(state);
+  stateRef.current = state;
+
   // Run a single AI-reasoned turn
-  const runNextTurn = useCallback(async () => {
-    if (!state || state.status !== "active") return;
+  const runNextTurn = useCallback(async (stateOverride?: NegotiationState) => {
+    const currentState = stateOverride || stateRef.current;
+    if (!currentState || currentState.status !== "active") return;
     setLoading(true);
     setError("");
 
     try {
-      const currentAgentIndex =
-        state.history.length % state.scenario.agents.length;
+      const activeAgentIndex =
+        currentState.history.length % currentState.scenario.agents.length;
 
       const res = await fetch(`${API_BASE_URL}/api/negotiation/next-turn`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          scenario: state.scenario,
-          max_rounds: state.max_rounds,
+          scenario: currentState.scenario,
+          max_rounds: currentState.max_rounds,
           personalities,
-          history: state.history,
-          round: state.round,
-          current_agent_index: currentAgentIndex,
-          current_offer: state.current_offer,
-          current_offer_unit: state.current_offer_unit,
-          status: state.status,
-          is_deadlocked: state.is_deadlocked,
-          deadlock_rounds_remaining: state.deadlock_rounds_remaining,
+          history: currentState.history,
+          round: currentState.round,
+          current_agent_index: activeAgentIndex,
+          current_offer: currentState.current_offer,
+          current_offer_unit: currentState.current_offer_unit,
+          status: currentState.status,
+          is_deadlocked: currentState.is_deadlocked,
+          deadlock_rounds_remaining: currentState.deadlock_rounds_remaining,
         }),
       });
 
@@ -121,8 +153,8 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
       if (!res.ok) throw new Error(data.error || "Failed to generate turn.");
 
       setState({
-        scenario: state.scenario,
-        max_rounds: state.max_rounds,
+        scenario: currentState.scenario,
+        max_rounds: currentState.max_rounds,
         history: data.state.history,
         round: data.state.round,
         current_offer: data.state.current_offer,
@@ -147,15 +179,95 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [state, personalities]);
+  }, [personalities]);
 
-  // Auto-run simulation timer with variable speed multiplier
+  // Handle Human Participant Turn Submission
+  const handleHumanTurnSubmit = async (humanTurnData: {
+    action: string;
+    offer: number | null;
+    unit: string;
+    message: string;
+  }) => {
+    if (!state || !currentAgent) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const activeAgentIndex =
+        state.history.length % state.scenario.agents.length;
+
+      const res = await fetch(`${API_BASE_URL}/api/negotiation/human-turn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenario: state.scenario,
+          max_rounds: state.max_rounds,
+          personalities,
+          history: state.history,
+          round: state.round,
+          current_agent_index: activeAgentIndex,
+          current_offer: state.current_offer,
+          current_offer_unit: state.current_offer_unit,
+          status: state.status,
+          is_deadlocked: state.is_deadlocked,
+          deadlock_rounds_remaining: state.deadlock_rounds_remaining,
+          agent_name: currentAgent.name,
+          action: humanTurnData.action,
+          offer: humanTurnData.offer,
+          unit: humanTurnData.unit,
+          message: humanTurnData.message,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit human turn.");
+
+      const nextState: NegotiationState = {
+        scenario: state.scenario,
+        max_rounds: state.max_rounds,
+        history: data.state.history,
+        round: data.state.round,
+        current_offer: data.state.current_offer,
+        current_offer_unit: data.state.current_offer_unit,
+        status: data.state.status,
+        is_deadlocked: data.state.is_deadlocked,
+        deadlock_rounds_remaining: data.state.deadlock_rounds_remaining,
+      };
+
+      setState(nextState);
+
+      setReasoning((prev) => [
+        ...prev,
+        "Human strategic move submitted — awaiting AI stakeholder response.",
+      ]);
+      setEvaluations((prev) => [...prev, null]);
+
+      showToast(`Move submitted as ${currentAgent.name}! AI stakeholders responding...`);
+
+      // If negotiation is still active, trigger the next AI agent's turn after a brief delay
+      if (nextState.status === "active") {
+        setTimeout(() => {
+          runNextTurn(nextState);
+        }, 600);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to process human turn."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-run simulation timer with variable speed multiplier (only in AI sim mode)
   useEffect(() => {
-    if (!autoRun || !state || state.status !== "active" || loading) return;
+    if (practiceMode || !autoRun || !state || state.status !== "active" || loading) return;
     const intervalMs = Math.round(1800 / speedMultiplier);
-    const timer = setTimeout(runNextTurn, intervalMs);
+    const timer = setTimeout(() => {
+      runNextTurn();
+    }, intervalMs);
     return () => clearTimeout(timer);
-  }, [autoRun, state, loading, runNextTurn, speedMultiplier]);
+  }, [practiceMode, autoRun, state, loading, runNextTurn, speedMultiplier]);
 
   // Auto-record completed report
   useEffect(() => {
@@ -200,12 +312,15 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
       scenario: state.scenario.name,
       category: state.scenario.category,
       status: state.status,
+      mode: practiceMode ? "Human Practice Mode" : "AI Autonomous Simulation",
+      human_role: practiceMode ? humanRole : null,
       total_rounds: state.round,
       final_offer: state.current_offer,
       agents: state.scenario.agents.map((a) => ({
         name: a.name,
         role: a.role,
         personality: personalities[a.name] || "Collaborative",
+        is_human: practiceMode && a.name === humanRole,
       })),
       history: state.history,
       evaluations: evaluations.filter(Boolean),
@@ -226,6 +341,7 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
   const handleExportMarkdown = () => {
     if (!state) return;
     const mdContent = `# Negotiation Arena Audit Report: ${state.scenario.name}
+**Mode:** ${practiceMode ? `Human Practice Mode (Playing as ${humanRole})` : "AI Autonomous Simulation"}  
 **Category:** ${state.scenario.category}  
 **Status:** ${state.status.toUpperCase()}  
 **Settled Offer:** ${state.current_offer ? `₹${state.current_offer.toLocaleString()} ${state.current_offer_unit || ""}` : "None"}  
@@ -233,10 +349,10 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
 **Generated On:** ${new Date().toLocaleString()}
 
 ## Participating Agents
-${state.scenario.agents.map((a) => `- **${a.name}** (${a.role}) — Personality: *${personalities[a.name] || "Collaborative"}*`).join("\n")}
+${state.scenario.agents.map((a) => `- **${a.name}** (${a.role}) ${practiceMode && a.name === humanRole ? "— **[HUMAN PARTICIPANT]**" : `— Personality: *${personalities[a.name] || "Collaborative"}*`}`).join("\n")}
 
 ## Negotiation Transcript
-${state.history.map((h, i) => `### Turn ${i + 1}: ${h.agent} [${h.action.toUpperCase()}]
+${state.history.map((h, i) => `### Turn ${i + 1}: ${h.agent} [${h.action.toUpperCase()}] ${h.is_human ? "👤 (YOU)" : ""}
 - **Offer:** ${h.offer ? `₹${h.offer.toLocaleString()} ${h.unit || ""}` : "N/A"}
 - **Dialogue:** "${h.message}"
 ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
@@ -262,12 +378,18 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
     : "max_rounds";
 
   const statusLabel = !state
-    ? "Arena Idle"
+    ? practiceMode
+      ? "Practice Arena Ready"
+      : "Arena Idle"
     : state.status === "active"
-    ? "Live Arena Simulation"
+    ? practiceMode
+      ? `🎮 Practice Mode (${humanRole})`
+      : "Live AI Simulation"
     : state.status === "agreement"
     ? "Agreement Settled 🎉"
     : "Max Rounds Reached";
+
+  const humanAgentConfig = template?.agents.find((a) => a.name === humanRole);
 
   return (
     <div className="page-content arena-container">
@@ -295,26 +417,54 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
           <div className="deadlock-alert-content">
             <span style={{ fontSize: "20px" }}>⚠️</span>
             <div>
-              <strong>Negotiation Deadlock Detected:</strong> Price movement has stagnated under 1% variation across recent rounds. Agents are adjusting concession pressure.
+              <strong>Negotiation Deadlock Detected:</strong> Price movement has stagnated under 1% variation across recent rounds. Concession pressure is heightened.
             </div>
           </div>
         </div>
       )}
 
-      {/* Arena Interactive Controls */}
+      {/* Arena Interactive Controls Bar */}
       <ArenaControls
         state={state}
+        template={template}
         loading={loading}
         autoRun={autoRun}
         speedMultiplier={speedMultiplier}
+        practiceMode={practiceMode}
+        humanRole={humanRole}
+        isHumanTurn={isHumanTurn}
         onRunNextTurn={runNextTurn}
         onToggleAutoRun={() => setAutoRun((v) => !v)}
         onChangeSpeed={setSpeedMultiplier}
+        onTogglePracticeMode={(mode) => {
+          setPracticeMode(mode);
+          setAutoRun(false);
+          showToast(
+            mode
+              ? `🎮 Practice Mode enabled! Select your role and make your moves.`
+              : `🤖 AI Autonomous Simulation mode enabled.`
+          );
+        }}
+        onChangeHumanRole={(role) => {
+          setHumanRole(role);
+          showToast(`Now negotiating as: ${role}`);
+        }}
         onReset={handleReset}
         onStartNegotiation={startNegotiation}
         onExportJSON={handleExportJSON}
         onExportMarkdown={handleExportMarkdown}
       />
+
+      {/* Human Participant Interactive Move Tray (when it's human's turn) */}
+      {isHumanTurn && (
+        <HumanInputTray
+          humanAgent={humanAgentConfig}
+          state={state}
+          loading={loading}
+          evaluations={evaluations}
+          onSubmitTurn={handleHumanTurnSubmit}
+        />
+      )}
 
       {error && <p className="test-result error">{error}</p>}
 
@@ -327,6 +477,7 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
           state={state}
           evaluations={evaluations}
           isThinking={loading}
+          humanRole={practiceMode ? humanRole : undefined}
         />
 
         {/* Center Column: Chat-Style Transcript with Per-Turn Reasoning */}

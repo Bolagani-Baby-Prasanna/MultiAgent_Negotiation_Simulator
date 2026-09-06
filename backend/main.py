@@ -53,6 +53,24 @@ class AgentTurnRequest(BaseModel):
     is_deadlocked: bool = False
     deadlock_rounds_remaining: Optional[int] = None
 
+class HumanTurnRequest(BaseModel):
+    scenario: dict
+    max_rounds: int = 10
+    personalities: dict = {}
+    history: list = []
+    round: int = 1
+    current_agent_index: int = 0
+    current_offer: Optional[float] = None
+    current_offer_unit: Optional[str] = None
+    status: str = "active"
+    is_deadlocked: bool = False
+    deadlock_rounds_remaining: Optional[int] = None
+    agent_name: str
+    action: str = "counter"
+    offer: Optional[float] = None
+    unit: Optional[str] = None
+    message: str = ""
+
 class EvaluateRequest(BaseModel):
     agent: dict
     personality: Optional[str] = "Collaborative"
@@ -251,6 +269,83 @@ def next_turn(request: AgentTurnRequest):
         return {
             "message": "Turn generated successfully",
             "turn": {**turn, "agent": agent["name"]},
+            "state": state,
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+
+@app.post("/api/negotiation/human-turn")
+def human_turn(request: HumanTurnRequest):
+    """Processes a human participant's turn, updates the negotiation state,
+    and advances the turn index to the next AI agent.
+    """
+    try:
+        orchestrator = NegotiationOrchestrator(
+            scenario=request.scenario,
+            max_rounds=request.max_rounds,
+            personalities=request.personalities,
+            round=request.round,
+            current_agent_index=request.current_agent_index,
+            status=request.status,
+            history=request.history,
+            current_offer=request.current_offer,
+            current_offer_unit=request.current_offer_unit,
+            is_deadlocked=request.is_deadlocked,
+            deadlock_rounds_remaining=request.deadlock_rounds_remaining,
+        )
+
+        if not orchestrator.is_active():
+            return {
+                "message": "Negotiation has already ended",
+                "turn": None,
+                "state": orchestrator.get_context(),
+            }
+
+        unit = request.unit or orchestrator.current_offer_unit
+        action = request.action.lower()
+        if action not in ("offer", "counter", "accept", "reject"):
+            action = "counter"
+
+        offer = request.offer
+        if action == "accept":
+            offer = orchestrator.current_offer if orchestrator.current_offer is not None else offer
+
+        orchestrator.add_message(
+            agent_name=request.agent_name,
+            action=action,
+            message=request.message,
+            offer=offer,
+            unit=unit,
+        )
+
+        turn_payload = {
+            "agent": request.agent_name,
+            "action": action,
+            "offer": offer,
+            "unit": unit,
+            "message": request.message,
+            "reasoning": "Human participant strategic decision.",
+            "is_human": True,
+        }
+
+        if action == "accept":
+            state = orchestrator.finish("agreement")
+        elif action == "reject":
+            state = orchestrator.finish("breakdown")
+        else:
+            orchestrator.advance_turn()
+            if orchestrator.status == "breakdown":
+                state = orchestrator.finish("breakdown")
+            else:
+                state = orchestrator.get_context()
+
+        return {
+            "message": "Human turn recorded successfully",
+            "turn": turn_payload,
             "state": state,
         }
 

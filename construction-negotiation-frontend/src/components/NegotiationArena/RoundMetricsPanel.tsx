@@ -34,24 +34,26 @@ export const RoundMetricsPanel: React.FC<RoundMetricsPanelProps> = ({
     })
     .join(" ");
 
-  // Convergence calculation: if spread shrinks over time
-  const firstSpread = offers.length >= 2 ? Math.abs(offers[0] - offers[1]) : range;
-  const lastSpread = offers.length >= 2 ? Math.abs(offers[offers.length - 1] - offers[offers.length - 2]) : range;
-  const convergencePct = Math.min(
-    100,
-    Math.max(
-      10,
-      firstSpread > 0 ? Math.round((1 - lastSpread / (firstSpread || 1)) * 100) : 50
-    )
-  );
+  // Convergence calculation: only computed when 2 or more distinct turns with offers exist
+  const hasConvergenceData = offers.length >= 2;
+  const firstSpread = hasConvergenceData ? Math.abs(offers[0] - offers[1]) : range;
+  const lastSpread = hasConvergenceData ? Math.abs(offers[offers.length - 1] - offers[offers.length - 2]) : range;
+  const rawConvergencePct = firstSpread > 0 ? Math.round((1 - lastSpread / (firstSpread || 1)) * 100) : 50;
+  const convergencePct = Math.min(100, Math.max(0, rawConvergencePct));
 
-  // Settlement Probability calculation
+  // Settlement Probability calculation: only when active offers/evaluations exist
+  const hasScore = latestEval?.offer_score?.score !== undefined;
   const scoreVal = latestEval?.offer_score?.score ?? 50;
-  const settlementProbability = state?.status === "agreement"
-    ? 100
-    : state?.status === "max_rounds" || state?.status === "breakdown"
-    ? 0
-    : Math.min(95, Math.max(15, Math.round(scoreVal * 0.7 + convergencePct * 0.3)));
+  
+  let settlementProbability: number | null = null;
+  if (state?.status === "agreement") {
+    settlementProbability = 100;
+  } else if (state?.status === "max_rounds" || state?.status === "breakdown") {
+    settlementProbability = 0;
+  } else if (offers.length > 0 || hasScore) {
+    const effConvergence = hasConvergenceData ? convergencePct : 20;
+    settlementProbability = Math.min(95, Math.max(15, Math.round(scoreVal * 0.7 + effConvergence * 0.3)));
+  }
 
   // Gauge parameters for latest score
   const radius = 40;
@@ -74,8 +76,17 @@ export const RoundMetricsPanel: React.FC<RoundMetricsPanelProps> = ({
         <div className="metrics-kpi-grid">
           <div className="metric-kpi-box">
             <span>Settlement Odds</span>
-            <strong style={{ color: settlementProbability > 60 ? "#16a34a" : "#dc2626" }}>
-              {settlementProbability}%
+            <strong
+              style={{
+                color:
+                  settlementProbability !== null
+                    ? settlementProbability > 60
+                      ? "#16a34a"
+                      : "#dc2626"
+                    : "#64748b",
+              }}
+            >
+              {settlementProbability !== null ? `${settlementProbability}%` : "—"}
             </strong>
           </div>
 
@@ -107,12 +118,20 @@ export const RoundMetricsPanel: React.FC<RoundMetricsPanelProps> = ({
         <div className="convergence-meter-wrap">
           <div className="convergence-header">
             <span>Deal Convergence</span>
-            <strong>{state?.status === "agreement" ? "100% (Settled)" : `${convergencePct}%`}</strong>
+            <strong>
+              {state?.status === "agreement"
+                ? "100% (Settled)"
+                : hasConvergenceData
+                ? `${convergencePct}%`
+                : "—"}
+            </strong>
           </div>
           <div className="convergence-bar-track">
             <div
               className="convergence-bar-fill"
-              style={{ width: `${state?.status === "agreement" ? 100 : convergencePct}%` }}
+              style={{
+                width: `${state?.status === "agreement" ? 100 : hasConvergenceData ? convergencePct : 0}%`,
+              }}
             />
           </div>
         </div>

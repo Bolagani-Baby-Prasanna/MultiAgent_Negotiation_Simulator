@@ -1,14 +1,20 @@
 import React from "react";
-import type { NegotiationState } from "../../types";
+import type { NegotiationState, ScenarioTemplate } from "../../types";
 
 interface ArenaControlsProps {
   state: NegotiationState | null;
+  template: ScenarioTemplate | undefined;
   loading: boolean;
   autoRun: boolean;
   speedMultiplier: 1 | 2 | 5;
+  practiceMode: boolean;
+  humanRole: string;
+  isHumanTurn: boolean;
   onRunNextTurn: () => void;
   onToggleAutoRun: () => void;
   onChangeSpeed: (speed: 1 | 2 | 5) => void;
+  onTogglePracticeMode: (isPractice: boolean) => void;
+  onChangeHumanRole: (role: string) => void;
   onReset: () => void;
   onStartNegotiation: () => void;
   onExportJSON: () => void;
@@ -17,12 +23,18 @@ interface ArenaControlsProps {
 
 export const ArenaControls: React.FC<ArenaControlsProps> = ({
   state,
+  template,
   loading,
   autoRun,
   speedMultiplier,
+  practiceMode,
+  humanRole,
+  isHumanTurn,
   onRunNextTurn,
   onToggleAutoRun,
   onChangeSpeed,
+  onTogglePracticeMode,
+  onChangeHumanRole,
   onReset,
   onStartNegotiation,
   onExportJSON,
@@ -32,7 +44,46 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
 
   return (
     <div className="arena-controls-bar">
+      {/* Left: Mode Selection & Action Buttons */}
       <div className="controls-left-group">
+        {/* Mode Selector Toggle */}
+        <div className="mode-toggle-pill-group">
+          <button
+            type="button"
+            className={`mode-toggle-btn ${!practiceMode ? "active" : ""}`}
+            onClick={() => onTogglePracticeMode(false)}
+            title="AI agents negotiate autonomously against each other"
+          >
+            🤖 AI Simulation
+          </button>
+          <button
+            type="button"
+            className={`mode-toggle-btn ${practiceMode ? "active" : ""}`}
+            onClick={() => onTogglePracticeMode(true)}
+            title="Step into the arena and negotiate directly with AI stakeholders"
+          >
+            🎮 Practice Mode
+          </button>
+        </div>
+
+        {/* Practice Role Selector */}
+        {practiceMode && template && (
+          <div className="human-role-selector-wrap">
+            <span className="role-selector-label">Play as:</span>
+            <select
+              value={humanRole}
+              onChange={(e) => onChangeHumanRole(e.target.value)}
+              className="human-role-select"
+            >
+              {template.agents.map((a) => (
+                <option key={a.name} value={a.name}>
+                  {a.icon} {a.name} ({a.role})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {!state ? (
           <button
             type="button"
@@ -40,7 +91,11 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
             onClick={onStartNegotiation}
             disabled={loading}
           >
-            {loading ? "Starting Arena..." : "🚀 Launch Negotiation Arena"}
+            {loading
+              ? "Starting Arena..."
+              : practiceMode
+              ? "🎮 Enter Arena as Participant"
+              : "🚀 Launch AI Negotiation"}
           </button>
         ) : isFinished ? (
           <>
@@ -62,47 +117,53 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
           </>
         ) : (
           <>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={onRunNextTurn}
-              disabled={loading || autoRun}
-            >
-              {loading ? "Thinking..." : "⏭ Next Turn (Step)"}
-            </button>
+            {!isHumanTurn && (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={onRunNextTurn}
+                disabled={loading || autoRun}
+              >
+                {loading ? "AI Thinking..." : "⏭ Next AI Move (Step)"}
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={autoRun ? "personality-btn selected" : "personality-btn"}
-              onClick={onToggleAutoRun}
-              style={{ padding: "8px 14px", fontSize: "13px" }}
-            >
-              {autoRun ? "⏸ Pause Simulation" : "▶ Auto-Play Arena"}
-            </button>
+            {!practiceMode && (
+              <button
+                type="button"
+                className={autoRun ? "personality-btn selected" : "personality-btn"}
+                onClick={onToggleAutoRun}
+                style={{ padding: "8px 14px", fontSize: "13px" }}
+              >
+                {autoRun ? "⏸ Pause Simulation" : "▶ Auto-Play Arena"}
+              </button>
+            )}
 
-            <div className="speed-control-btn-group">
-              <button
-                type="button"
-                className={`speed-toggle-btn ${speedMultiplier === 1 ? "active" : ""}`}
-                onClick={() => onChangeSpeed(1)}
-              >
-                1x
-              </button>
-              <button
-                type="button"
-                className={`speed-toggle-btn ${speedMultiplier === 2 ? "active" : ""}`}
-                onClick={() => onChangeSpeed(2)}
-              >
-                2x
-              </button>
-              <button
-                type="button"
-                className={`speed-toggle-btn ${speedMultiplier === 5 ? "active" : ""}`}
-                onClick={() => onChangeSpeed(5)}
-              >
-                5x
-              </button>
-            </div>
+            {!practiceMode && (
+              <div className="speed-control-btn-group">
+                <button
+                  type="button"
+                  className={`speed-toggle-btn ${speedMultiplier === 1 ? "active" : ""}`}
+                  onClick={() => onChangeSpeed(1)}
+                >
+                  1x
+                </button>
+                <button
+                  type="button"
+                  className={`speed-toggle-btn ${speedMultiplier === 2 ? "active" : ""}`}
+                  onClick={() => onChangeSpeed(2)}
+                >
+                  2x
+                </button>
+                <button
+                  type="button"
+                  className={`speed-toggle-btn ${speedMultiplier === 5 ? "active" : ""}`}
+                  onClick={() => onChangeSpeed(5)}
+                >
+                  5x
+                </button>
+              </div>
+            )}
 
             <button
               type="button"
@@ -115,6 +176,7 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
         )}
       </div>
 
+      {/* Right: Export options */}
       <div className="controls-right-group">
         {state && (
           <>
@@ -122,7 +184,7 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
               type="button"
               className="outline-button compact-btn"
               onClick={onExportJSON}
-              title="Download full machine-readable JSON data"
+              title="Download machine-readable JSON negotiation data"
             >
               📥 Export JSON
             </button>
@@ -130,7 +192,7 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
               type="button"
               className="outline-button compact-btn"
               onClick={onExportMarkdown}
-              title="Download formatted markdown audit report"
+              title="Download formatted Markdown summary report"
             >
               📄 Export Summary
             </button>

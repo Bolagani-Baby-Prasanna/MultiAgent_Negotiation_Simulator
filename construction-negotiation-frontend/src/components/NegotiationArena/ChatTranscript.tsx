@@ -158,12 +158,15 @@ export const ChatTranscript: React.FC<ChatTranscriptProps> = ({
                     : "score-low"
                   : "";
 
+              const isHuman = !!entry.is_human;
+
               return (
-                <div key={idx} className="chat-turn-container">
+                <div key={idx} className={`chat-turn-container ${isHuman ? "is-human-turn-wrap" : ""}`}>
                   <div className="chat-turn-header">
                     <div className="chat-turn-sender">
                       <div className="turn-avatar-badge">{agentObj?.icon || "🤖"}</div>
                       <strong>{entry.agent}</strong>
+                      {isHuman && <span className="human-you-tag">👤 YOU</span>}
                       <span className="role-sublabel">({agentObj?.role || "Agent"})</span>
                       {personality && (
                         <span className={`personality-chip ${personality}`}>
@@ -176,7 +179,7 @@ export const ChatTranscript: React.FC<ChatTranscriptProps> = ({
                     </span>
                   </div>
 
-                  <div className={`chat-bubble action-${entry.action.toLowerCase()}`}>
+                  <div className={`chat-bubble action-${entry.action.toLowerCase()} ${isHuman ? "is-human-bubble" : ""}`}>
                     <div className="bubble-top-row">
                       <span className={`action-pill ${entry.action.toLowerCase()}`}>
                         {entry.action.toUpperCase()}

@@ -438,6 +438,7 @@ function App() {
             personalities={personalities}
             setPersonalities={setPersonalities}
             templates={templates}
+            setTemplates={setTemplates}
             onStartNegotiation={() => setActivePage("Negotiation Arena")}
           />
         )}
@@ -848,16 +849,17 @@ function AgentConfiguration({
   personalities,
   setPersonalities,
   templates,
+  setTemplates,
   onStartNegotiation,
 }: {
   selectedScenario: string;
   personalities: Record<string, Personality>;
   setPersonalities: Dispatch<SetStateAction<Record<string, Personality>>>;
   templates: ScenarioTemplate[];
+  setTemplates: Dispatch<SetStateAction<ScenarioTemplate[]>>;
   onStartNegotiation: () => void;
 }) {
   const template = templates.find((t) => t.name === selectedScenario);
-  const [customConstraints, setCustomConstraints] = useState<Record<string, string[]>>({});
   const [newConstraintInputs, setNewConstraintInputs] = useState<Record<string, string>>({});
 
   const allConfigured =
@@ -874,19 +876,41 @@ function AgentConfiguration({
     const text = newConstraintInputs[agentName]?.trim();
     if (!text) return;
 
-    setCustomConstraints((prev) => {
-      const existing = prev[agentName] || template?.agents.find((a) => a.name === agentName)?.constraints || [];
-      return { ...prev, [agentName]: [...existing, text] };
-    });
+    setTemplates((prev) =>
+      prev.map((tpl) => {
+        if (tpl.name !== selectedScenario) return tpl;
+        return {
+          ...tpl,
+          agents: tpl.agents.map((ag) => {
+            if (ag.name !== agentName) return ag;
+            return {
+              ...ag,
+              constraints: [...ag.constraints, text],
+            };
+          }),
+        };
+      })
+    );
 
     setNewConstraintInputs((prev) => ({ ...prev, [agentName]: "" }));
   };
 
   const handleRemoveConstraint = (agentName: string, index: number) => {
-    setCustomConstraints((prev) => {
-      const existing = prev[agentName] || template?.agents.find((a) => a.name === agentName)?.constraints || [];
-      return { ...prev, [agentName]: existing.filter((_, i) => i !== index) };
-    });
+    setTemplates((prev) =>
+      prev.map((tpl) => {
+        if (tpl.name !== selectedScenario) return tpl;
+        return {
+          ...tpl,
+          agents: tpl.agents.map((ag) => {
+            if (ag.name !== agentName) return ag;
+            return {
+              ...ag,
+              constraints: ag.constraints.filter((_, i) => i !== index),
+            };
+          }),
+        };
+      })
+    );
   };
 
   return (
@@ -908,7 +932,7 @@ function AgentConfiguration({
       <div className="agent-config-grid">
         {template?.agents.map((agent) => {
           const selected = personalities[agent.name];
-          const activeConstraints = customConstraints[agent.name] || agent.constraints;
+          const activeConstraints = agent.constraints;
 
           return (
             <div className="agent-config-card" key={agent.name}>

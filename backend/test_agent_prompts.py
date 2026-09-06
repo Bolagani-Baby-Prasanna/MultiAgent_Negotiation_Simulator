@@ -293,3 +293,25 @@ def test_all_scenario_templates_reach_agreement():
 
         assert agreement is True, f"Scenario '{sc['name']}' failed to reach agreement."
 
+
+def test_human_turn_flow(mock_scenario):
+    from orchestrator import NegotiationOrchestrator
+    orchestrator = NegotiationOrchestrator(
+        scenario=mock_scenario,
+        max_rounds=5,
+    )
+    # Human plays Contractor Agent
+    orchestrator.add_message(
+        agent_name="Contractor Agent",
+        action="offer",
+        message="I propose an opening price of 51,000 per ton.",
+        offer=51000.0,
+        unit="price per ton",
+    )
+    assert len(orchestrator.history) == 1
+    assert orchestrator.current_offer == 51000.0
+    assert orchestrator.current_offer_unit == "price per ton"
+    orchestrator.advance_turn()
+    assert orchestrator.current_agent_index == 1
+
+

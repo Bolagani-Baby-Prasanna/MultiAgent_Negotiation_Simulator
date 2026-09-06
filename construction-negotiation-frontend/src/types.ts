@@ -83,6 +83,7 @@ export interface NegotiationHistoryEntry {
   message: string;
   offer: number | null;
   unit?: string | null;
+  is_human?: boolean;
 }
 
 export interface ConstraintCheckData {

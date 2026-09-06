@@ -23,8 +23,6 @@ if groq_api_key:
 # ------------------------------------------------------------------
 from prompt_templates import (
     DEFAULT_PERSONALITY,
-    PERSONALITY_PROMPTS,
-    format_history as _format_history,
     get_agent_prompt,
 )
 
