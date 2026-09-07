@@ -17,6 +17,7 @@ interface ArenaControlsProps {
   onChangeHumanRole: (role: string) => void;
   onReset: () => void;
   onStartNegotiation: () => void;
+  onAutoComplete?: () => void;
   onExportJSON: () => void;
   onExportMarkdown: () => void;
 }
@@ -37,6 +38,7 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
   onChangeHumanRole,
   onReset,
   onStartNegotiation,
+  onAutoComplete,
   onExportJSON,
   onExportMarkdown,
 }) => {
@@ -74,6 +76,7 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
               value={humanRole}
               onChange={(e) => onChangeHumanRole(e.target.value)}
               className="human-role-select"
+              disabled={state?.status === "active"}
             >
               {template.agents.map((a) => (
                 <option key={a.name} value={a.name}>
@@ -125,6 +128,19 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
                 disabled={loading || autoRun}
               >
                 {loading ? "AI Thinking..." : "⏭ Next AI Move (Step)"}
+              </button>
+            )}
+
+            {practiceMode && onAutoComplete && (
+              <button
+                type="button"
+                className="personality-btn selected"
+                onClick={onAutoComplete}
+                disabled={loading}
+                title="Automatically simulate remaining turns and generate final conclusion debrief"
+                style={{ padding: "8px 14px", fontSize: "13px", background: "#4f46e5", color: "white" }}
+              >
+                ⚡ Fast-Forward to Conclusion
               </button>
             )}
 

@@ -5,6 +5,7 @@ import { ArenaControls } from "./ArenaControls";
 import { ChatTranscript } from "./ChatTranscript";
 import { HumanInputTray } from "./HumanInputTray";
 import { RoundMetricsPanel } from "./RoundMetricsPanel";
+import { NegotiationConclusionCard, type NegotiationConclusionData } from "./NegotiationConclusionCard";
 import "./arena.css";
 
 const API_BASE_URL =
@@ -36,6 +37,10 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
   const [error, setError] = useState("");
   const [reportSaved, setReportSaved] = useState(false);
 
+  // Conclusion & Debrief State
+  const [conclusionData, setConclusionData] = useState<NegotiationConclusionData | null>(null);
+  const [loadingConclusion, setLoadingConclusion] = useState(false);
+
   // Human Participant Practice Mode State
   const [practiceMode, setPracticeMode] = useState<boolean>(false);
   const [humanRole, setHumanRole] = useState<string>(
@@ -54,6 +59,7 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     setState(null);
     setReasoning([]);
     setEvaluations([]);
+    setConclusionData(null);
     setAutoRun(false);
     setError("");
     setReportSaved(false);
@@ -243,13 +249,6 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
       setEvaluations((prev) => [...prev, null]);
 
       showToast(`Move submitted as ${currentAgent.name}! AI stakeholders responding...`);
-
-      // If negotiation is still active, trigger the next AI agent's turn after a brief delay
-      if (nextState.status === "active") {
-        setTimeout(() => {
-          runNextTurn(nextState);
-        }, 600);
-      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to process human turn."
@@ -268,6 +267,117 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     }, intervalMs);
     return () => clearTimeout(timer);
   }, [practiceMode, autoRun, state, loading, runNextTurn, speedMultiplier]);
+
+  // Practice Mode: automatically progress AI stakeholder turns until it is the human participant's turn
+  useEffect(() => {
+    if (!practiceMode || !state || state.status !== "active" || loading || isHumanTurn) return;
+    const timer = setTimeout(() => {
+      runNextTurn();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [practiceMode, state, loading, isHumanTurn, runNextTurn]);
+
+  // Fetch Executive Negotiation Conclusion when state concludes
+  useEffect(() => {
+    if (!state || state.status === "active") {
+      setConclusionData(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    const fetchConclusion = async () => {
+      setLoadingConclusion(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/negotiation/conclusion`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenario: state.scenario,
+            history: state.history,
+            status: state.status,
+            final_offer: state.current_offer,
+            final_offer_unit: state.current_offer_unit,
+            total_rounds: state.round,
+            human_role: practiceMode ? humanRole : null,
+          }),
+        });
+
+        const data = await res.json();
+        if (isSubscribed && res.ok && data.conclusion) {
+          setConclusionData(data.conclusion);
+        }
+      } catch (err) {
+        console.error("Failed to load conclusion debrief:", err);
+      } finally {
+        if (isSubscribed) setLoadingConclusion(false);
+      }
+    };
+
+    fetchConclusion();
+    return () => {
+      isSubscribed = false;
+    };
+  }, [state?.status, state?.history.length, practiceMode, humanRole]);
+
+  // Auto-complete / Fast-Forward remaining rounds straight to conclusion
+  const handleAutoComplete = async () => {
+    if (!state || state.status !== "active") return;
+    setLoading(true);
+    setError("");
+
+    let curState: NegotiationState = state;
+    let safetyLimit = 15;
+
+    while (curState.status === "active" && safetyLimit > 0) {
+      safetyLimit--;
+      try {
+        const activeIdx = curState.history.length % curState.scenario.agents.length;
+        const res = await fetch(`${API_BASE_URL}/api/negotiation/next-turn`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenario: curState.scenario,
+            max_rounds: curState.max_rounds,
+            personalities,
+            history: curState.history,
+            round: curState.round,
+            current_agent_index: activeIdx,
+            current_offer: curState.current_offer,
+            current_offer_unit: curState.current_offer_unit,
+            status: curState.status,
+            is_deadlocked: curState.is_deadlocked,
+            deadlock_rounds_remaining: curState.deadlock_rounds_remaining,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) break;
+
+        curState = {
+          scenario: curState.scenario,
+          max_rounds: curState.max_rounds,
+          history: data.state.history,
+          round: data.state.round,
+          current_offer: data.state.current_offer,
+          current_offer_unit: data.state.current_offer_unit,
+          status: data.state.status,
+          is_deadlocked: data.state.is_deadlocked,
+          deadlock_rounds_remaining: data.state.deadlock_rounds_remaining,
+        };
+
+        setState(curState);
+        if (data.turn?.reasoning) setReasoning((prev) => [...prev, data.turn.reasoning]);
+        setEvaluations((prev) => [...prev, data.turn?.evaluation ?? null]);
+
+        if (curState.status !== "active") break;
+      } catch (err) {
+        break;
+      }
+    }
+
+    setLoading(false);
+    showToast("Simulation concluded — executive debrief report ready!");
+  };
 
   // Auto-record completed report
   useEffect(() => {
@@ -300,6 +410,7 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     setState(null);
     setReasoning([]);
     setEvaluations([]);
+    setConclusionData(null);
     setAutoRun(false);
     setError("");
     setReportSaved(false);
@@ -451,9 +562,25 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
         }}
         onReset={handleReset}
         onStartNegotiation={startNegotiation}
+        onAutoComplete={handleAutoComplete}
         onExportJSON={handleExportJSON}
         onExportMarkdown={handleExportMarkdown}
       />
+
+      {/* Comprehensive Post-Negotiation Conclusion & Executive Debrief Card */}
+      {state && state.status !== "active" && (
+        <NegotiationConclusionCard
+          state={state}
+          conclusionData={conclusionData}
+          loadingConclusion={loadingConclusion}
+          practiceMode={practiceMode}
+          humanRole={humanRole}
+          onReset={handleReset}
+          onStartNegotiation={startNegotiation}
+          onExportMarkdown={handleExportMarkdown}
+          onExportJSON={handleExportJSON}
+        />
+      )}
 
       {/* Human Participant Interactive Move Tray (when it's human's turn) */}
       {isHumanTurn && (

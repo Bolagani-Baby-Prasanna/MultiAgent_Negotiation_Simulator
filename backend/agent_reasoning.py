@@ -458,4 +458,140 @@ def generate_agent_turn(agent, personality, scenario, history, current_offer, ro
             current_offer_unit=current_offer_unit,
         )
         turn["evaluation"] = evaluation_dict
-        return _enforce_min_rounds(turn, agent, history, current_offer, round_num, max_rounds)
+        return _enforce_min_rounds(turn, agent, history, current_offer, round_num, max_rounds)
+
+
+def generate_negotiation_conclusion(
+    scenario: dict,
+    history: list,
+    status: str,
+    final_offer: float = None,
+    final_offer_unit: str = None,
+    total_rounds: int = 1,
+    human_role: str = None,
+) -> dict:
+    """Generates an executive-level post-negotiation conclusion and performance debrief."""
+    scenario_name = scenario.get("name", "Construction Scenario")
+    unit = final_offer_unit or "₹ / unit"
+    agents = scenario.get("agents", [])
+    total_turns = len(history)
+
+    is_agreement = status == "agreement"
+    is_breakdown = status == "breakdown"
+
+    outcome_label = (
+        "Successful Agreement 🎉"
+        if is_agreement
+        else ("Negotiation Breakdown ❌" if is_breakdown else "Maximum Rounds Reached ⚠️")
+    )
+
+    # Calculate per-agent concession summary
+    stakeholder_concessions = []
+    for ag in agents:
+        ag_name = ag.get("name")
+        ag_role = ag.get("role", "Stakeholder")
+        ag_history = [h for h in history if h.get("agent") == ag_name and h.get("offer") is not None]
+
+        first_offer = ag_history[0]["offer"] if ag_history else None
+        last_offer = ag_history[-1]["offer"] if ag_history else final_offer
+
+        concession_diff = (
+            abs(first_offer - last_offer)
+            if (first_offer is not None and last_offer is not None)
+            else 0.0
+        )
+        concession_pct = (
+            round((concession_diff / first_offer) * 100, 1)
+            if (first_offer and first_offer > 0)
+            else 0.0
+        )
+
+        stakeholder_concessions.append({
+            "agent": ag_name,
+            "role": ag_role,
+            "initial_offer": first_offer,
+            "final_position": last_offer,
+            "concession_amount": concession_diff,
+            "concession_pct": concession_pct,
+            "is_human": ag_name == human_role,
+        })
+
+    # Human participant evaluation if applicable
+    human_eval = None
+    if human_role:
+        human_turns = [h for h in history if h.get("agent") == human_role]
+        has_human_participated = len(human_turns) > 0
+
+        score = 85 if is_agreement else 65
+        if has_human_participated:
+            score += min(10, len(human_turns) * 2)
+
+        human_eval = {
+            "role": human_role,
+            "tactical_score": min(100, score),
+            "turns_played": len(human_turns),
+            "verdict": "Disciplined & Strategic Negotiator" if score >= 80 else "Pragmatic Negotiator",
+            "strengths": [
+                "Maintained clear communication of project constraints and boundaries",
+                "Successfully engaged in back-and-forth counter-proposals with AI stakeholders",
+            ],
+            "recommendations": [
+                "Consider leveraging non-price trade-offs (e.g. delivery schedules or payment cycles) to bridge late-stage gaps faster",
+                "Anchor opening positions firmly before conceding ground in small calibrated steps",
+            ],
+        }
+
+    # Synthesize key agreed terms
+    key_agreements = []
+    if final_offer is not None:
+        key_agreements.append(f"Settled commercial position: ₹{final_offer:,.0f} ({unit})")
+    key_agreements.append(f"Negotiation finalized across {total_rounds} rounds ({total_turns} total dialogue turns)")
+    key_agreements.append("Structural and operational specifications aligned with baseline project safety standards")
+
+    # Try LLM for executive narrative, fallback to structured narrative
+    executive_summary = (
+        f"The {scenario_name} negotiation concluded with a {outcome_label}. "
+        f"Across {total_rounds} rounds of multi-stakeholder dialogue, participants balanced cost, schedule, and quality constraints. "
+        + (
+            f"The parties converged on a final settled figure of ₹{final_offer:,.0f} {unit}."
+            if final_offer is not None
+            else "The parties concluded without formal pricing convergence."
+        )
+    )
+
+    if _groq_client and total_turns > 1:
+        try:
+            transcript_snippet = "\n".join([
+                f"{h.get('agent')} ({h.get('action').upper()}): {h.get('message', '')[:120]}... [Offer: {h.get('offer')}]"
+                for h in history[-8:]
+            ])
+            prompt = (
+                f"You are an executive construction arbitrator. Summarize this negotiation debrief in 2 concise, professional sentences:\n"
+                f"Scenario: {scenario_name}\nOutcome: {outcome_label}\nFinal Offer: {final_offer} {unit}\n"
+                f"Recent Dialogue:\n{transcript_snippet}\n"
+                f"Write a polished 2-sentence executive summary explaining the compromise reached."
+            )
+            resp = _groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="groq/compound",
+                max_tokens=150,
+            )
+            content = resp.choices[0].message.content.strip()
+            if content and len(content) > 30:
+                executive_summary = content
+        except Exception:
+            pass
+
+    return {
+        "outcome": status,
+        "outcome_label": outcome_label,
+        "title": f"Negotiation Audit Debrief: {scenario_name}",
+        "executive_summary": executive_summary,
+        "final_offer": final_offer,
+        "final_offer_unit": unit,
+        "total_rounds": total_rounds,
+        "total_turns": total_turns,
+        "key_agreements": key_agreements,
+        "stakeholder_concessions": stakeholder_concessions,
+        "human_performance": human_eval,
+    }

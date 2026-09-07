@@ -254,6 +254,7 @@ def next_turn(request: AgentTurnRequest):
             message=turn["message"],
             offer=turn["offer"],
             unit=turn.get("unit"),
+            is_human=False,
         )
 
         if turn["action"] == "accept":
@@ -320,6 +321,7 @@ def human_turn(request: HumanTurnRequest):
             message=request.message,
             offer=offer,
             unit=unit,
+            is_human=True,
         )
 
         turn_payload = {
@@ -378,6 +380,39 @@ def evaluate_current_offer(request: EvaluateRequest):
             "evaluation": evaluation_to_dict(result),
         }
 
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+
+class ConclusionRequest(BaseModel):
+    scenario: dict
+    history: list = []
+    status: str = "agreement"
+    final_offer: Optional[float] = None
+    final_offer_unit: Optional[str] = None
+    total_rounds: int = 1
+    human_role: Optional[str] = None
+
+@app.post("/api/negotiation/conclusion")
+def get_negotiation_conclusion(request: ConclusionRequest):
+    """Generates an executive-level summary and debrief of the completed negotiation."""
+    try:
+        from agent_reasoning import generate_negotiation_conclusion
+        conclusion = generate_negotiation_conclusion(
+            scenario=request.scenario,
+            history=request.history,
+            status=request.status,
+            final_offer=request.final_offer,
+            final_offer_unit=request.final_offer_unit,
+            total_rounds=request.total_rounds,
+            human_role=request.human_role,
+        )
+        return {
+            "message": "Conclusion generated successfully",
+            "conclusion": conclusion,
+        }
     except Exception as e:
         return JSONResponse(
             status_code=400,

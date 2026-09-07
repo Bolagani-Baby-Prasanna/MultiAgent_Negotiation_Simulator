@@ -79,7 +79,8 @@ class NegotiationOrchestrator:
         action,
         message,
         offer=None,
-        unit=None
+        unit=None,
+        is_human=False,
     ):
 
         entry = {
@@ -88,7 +89,8 @@ class NegotiationOrchestrator:
             "action": action,
             "message": message,
             "offer": offer,
-            "unit": unit
+            "unit": unit,
+            "is_human": is_human,
         }
 
         self.history.append(entry)
