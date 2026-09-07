@@ -123,7 +123,7 @@ export const HumanInputTray: React.FC<HumanInputTrayProps> = ({
     const draft = computeOptimalDraft();
     onSubmitTurn({
       action: draft.action,
-      offer: draft.action === "reject" ? null : draft.offer,
+      offer: draft.offer,
       unit: currentUnit,
       message: draft.message,
     });
@@ -186,7 +186,6 @@ export const HumanInputTray: React.FC<HumanInputTrayProps> = ({
   // Constraint safety check
   const constraints = humanAgent.constraints || [];
   let constraintWarning = "";
-  let isConstraintSafe = true;
 
   if (typeof offerValue === "number" && (action === "offer" || action === "counter")) {
     for (const c of constraints) {
@@ -208,7 +207,6 @@ export const HumanInputTray: React.FC<HumanInputTrayProps> = ({
             offerValue > bound
           ) {
             constraintWarning = `⚠️ Warning: Your offer ₹${offerValue.toLocaleString()} exceeds your specified constraint limit (${c}).`;
-            isConstraintSafe = false;
             break;
           }
           if (
@@ -219,7 +217,6 @@ export const HumanInputTray: React.FC<HumanInputTrayProps> = ({
             offerValue < bound
           ) {
             constraintWarning = `⚠️ Warning: Your offer ₹${offerValue.toLocaleString()} is below your required minimum limit (${c}).`;
-            isConstraintSafe = false;
             break;
           }
         }
