@@ -140,6 +140,17 @@ export interface NegotiationState {
   deadlock_rounds_remaining?: number | null;
 }
 
+export interface NegotiationOutcome {
+  status: string;
+  rounds_elapsed: number;
+  max_rounds: number;
+  turns_elapsed: number;
+  final_offer: number | null;
+  final_offer_unit?: string | null;
+  accepted_by: string | null;
+  evaluations: EvaluationData[];
+}
+
 export interface AgentStanceInfo {
   name: string;
   role: string;

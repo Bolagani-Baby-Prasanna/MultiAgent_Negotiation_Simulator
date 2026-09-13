@@ -20,6 +20,8 @@ interface ArenaControlsProps {
   onAutoComplete?: () => void;
   onExportJSON: () => void;
   onExportMarkdown: () => void;
+  showOutcome: boolean;
+  onToggleOutcome: () => void;
 }
 
 export const ArenaControls: React.FC<ArenaControlsProps> = ({
@@ -41,6 +43,8 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
   onAutoComplete,
   onExportJSON,
   onExportMarkdown,
+  showOutcome,
+  onToggleOutcome,
 }) => {
   const isFinished = state && state.status !== "active";
 
@@ -196,6 +200,15 @@ export const ArenaControls: React.FC<ArenaControlsProps> = ({
       <div className="controls-right-group">
         {state && (
           <>
+            {isFinished && (
+              <button
+                type="button"
+                className={showOutcome ? "primary-button compact-btn" : "outline-button compact-btn"}
+                onClick={onToggleOutcome}
+              >
+                {showOutcome ? "↩ Arena View" : "🏁 Outcome Screen"}
+              </button>
+            )}
             <button
               type="button"
               className="outline-button compact-btn"

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import type { CompletedReport, EvaluationData, NegotiationState, Personality, ScenarioTemplate } from "../../types";
+import type { CompletedReport, EvaluationData, NegotiationOutcome, NegotiationState, Personality, ScenarioTemplate } from "../../types";
 import { AgentStancePanel } from "./AgentStancePanel";
 import { ArenaControls } from "./ArenaControls";
 import { ChatTranscript } from "./ChatTranscript";
 import { HumanInputTray } from "./HumanInputTray";
+import { OutcomeScreen } from "./OutcomeScreen";
 import { RoundMetricsPanel } from "./RoundMetricsPanel";
 import { NegotiationConclusionCard, type NegotiationConclusionData } from "./NegotiationConclusionCard";
 import "./arena.css";
@@ -36,6 +37,9 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [reportSaved, setReportSaved] = useState(false);
+  const [showOutcome, setShowOutcome] = useState(false);
+  const [outcome, setOutcome] = useState<NegotiationOutcome | null>(null);
+  const [loadingOutcome, setLoadingOutcome] = useState(false);
 
   // Conclusion & Debrief State
   const [conclusionData, setConclusionData] = useState<NegotiationConclusionData | null>(null);
@@ -63,6 +67,9 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     setAutoRun(false);
     setError("");
     setReportSaved(false);
+    setShowOutcome(false);
+    setOutcome(null);
+    setLoadingOutcome(false);
   }, [selectedScenario]);
 
   // Determine current active agent and whether it's human's turn
@@ -81,6 +88,8 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     setLoading(true);
     setError("");
     setReportSaved(false);
+    setShowOutcome(false);
+    setOutcome(null);
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/negotiation/start`, {
@@ -383,7 +392,7 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
   useEffect(() => {
     if (!state || state.status === "active" || reportSaved) return;
 
-    const outcome =
+    const reportOutcome =
       state.status === "agreement"
         ? "Successful"
         : "No Agreement";
@@ -395,7 +404,7 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
       agentCount: state.scenario.agents.length,
       rounds: state.round,
       finalOffer: state.current_offer,
-      outcome,
+      outcome: reportOutcome,
       timestamp: new Date().toLocaleString(),
       historySummary: state.history.map(
         (h) => `${h.agent} [${h.action.toUpperCase()}]: ${h.message}`
@@ -404,7 +413,38 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
 
     onCompleteReport(report);
     setReportSaved(true);
-  }, [state, reportSaved, onCompleteReport]);
+    setShowOutcome(true);
+
+    const fetchOutcome = async () => {
+      setLoadingOutcome(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/negotiation/outcome`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenario: state.scenario,
+            max_rounds: state.max_rounds,
+            personalities,
+            history: state.history,
+            round: state.round,
+            current_offer: state.current_offer,
+            current_offer_unit: state.current_offer_unit,
+            status: state.status,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.outcome) {
+          setOutcome(data.outcome);
+        }
+      } catch {
+        setOutcome(null);
+      } finally {
+        setLoadingOutcome(false);
+      }
+    };
+
+    void fetchOutcome();
+  }, [state, reportSaved, onCompleteReport, personalities]);
 
   const handleReset = () => {
     setState(null);
@@ -414,6 +454,8 @@ export const NegotiationArena: React.FC<NegotiationArenaProps> = ({
     setAutoRun(false);
     setError("");
     setReportSaved(false);
+    setShowOutcome(false);
+    setOutcome(null);
     showToast("Arena reset to initial state.");
   };
 
@@ -565,6 +607,8 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
         onAutoComplete={handleAutoComplete}
         onExportJSON={handleExportJSON}
         onExportMarkdown={handleExportMarkdown}
+        showOutcome={showOutcome}
+        onToggleOutcome={() => setShowOutcome((v) => !v)}
       />
 
       {/* Comprehensive Post-Negotiation Conclusion & Executive Debrief Card */}
@@ -595,36 +639,42 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
 
       {error && <p className="test-result error">{error}</p>}
 
-      {/* Arena Main 3-Column Grid */}
-      <div className="arena-grid">
-        {/* Left Column: Live Agent Stances */}
-        <AgentStancePanel
+      {showOutcome && state && state.status !== "active" ? (
+        <OutcomeScreen
           template={template}
           personalities={personalities}
           state={state}
           evaluations={evaluations}
-          isThinking={loading}
-          humanRole={practiceMode ? humanRole : undefined}
+          outcome={outcome}
+          loadingOutcome={loadingOutcome}
         />
+      ) : (
+        <div className="arena-grid">
+          <AgentStancePanel
+            template={template}
+            personalities={personalities}
+            state={state}
+            evaluations={evaluations}
+            isThinking={loading}
+          />
 
-        {/* Center Column: Chat-Style Transcript with Per-Turn Reasoning */}
-        <ChatTranscript
-          template={template}
-          personalities={personalities}
-          state={state}
-          reasoning={reasoning}
-          evaluations={evaluations}
-          loading={loading}
-          onStartNegotiation={startNegotiation}
-        />
+          <ChatTranscript
+            template={template}
+            personalities={personalities}
+            state={state}
+            reasoning={reasoning}
+            evaluations={evaluations}
+            loading={loading}
+            onStartNegotiation={startNegotiation}
+          />
 
-        {/* Right Column: Round Metrics, Trajectory, and Convergence Panel */}
-        <RoundMetricsPanel
-          template={template}
-          state={state}
-          evaluations={evaluations}
-        />
-      </div>
+          <RoundMetricsPanel
+            template={template}
+            state={state}
+            evaluations={evaluations}
+          />
+        </div>
+      )}
     </div>
   );
 };

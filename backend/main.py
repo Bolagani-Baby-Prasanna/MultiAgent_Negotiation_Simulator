@@ -413,11 +413,72 @@ def get_negotiation_conclusion(request: ConclusionRequest):
             "message": "Conclusion generated successfully",
             "conclusion": conclusion,
         }
+
     except Exception as e:
         return JSONResponse(
             status_code=400,
             content={"error": str(e)}
         )
+
+
+@app.post("/api/negotiation/outcome")
+def negotiation_outcome(request: AgentTurnRequest):
+    """Score every participating agent against the final offer and return
+    a complete outcome payload for the Outcome Screen.
+    """
+    try:
+        agents = request.scenario.get("agents", [])
+        history = request.history or []
+        unique_rounds = sorted({
+            entry.get("round")
+            for entry in history
+            if isinstance(entry, dict) and entry.get("round") is not None
+        })
+        rounds_elapsed = len(unique_rounds) if unique_rounds else min(
+            request.round, request.max_rounds
+        )
+
+        evaluations = []
+        for agent in agents:
+            personality = (request.personalities or {}).get(
+                agent.get("name", ""), "Collaborative"
+            )
+            result = evaluate_offer(
+                agent=agent,
+                personality=personality,
+                scenario=request.scenario,
+                history=history,
+                current_offer=request.current_offer,
+                round_num=request.round,
+                max_rounds=request.max_rounds,
+                offer_unit=request.current_offer_unit,
+            )
+            evaluations.append(evaluation_to_dict(result))
+
+        accepting_entry = next(
+            (h for h in reversed(history) if h.get("action") == "accept"),
+            None,
+        )
+
+        return {
+            "message": "Outcome compiled successfully",
+            "outcome": {
+                "status": request.status,
+                "rounds_elapsed": rounds_elapsed,
+                "max_rounds": request.max_rounds,
+                "turns_elapsed": len(history),
+                "final_offer": request.current_offer,
+                "final_offer_unit": request.current_offer_unit,
+                "accepted_by": accepting_entry.get("agent") if accepting_entry else None,
+                "evaluations": evaluations,
+            },
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        }
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 4000))
