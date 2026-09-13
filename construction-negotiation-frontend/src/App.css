@@ -32,7 +32,7 @@ button {
   width: 260px;
   min-height: 100vh;
   background: #111a2e;
-  color: white;
+  color: #1e293b;
   display: flex;
   flex-direction: column;
   padding: 24px 16px;
@@ -85,7 +85,7 @@ button {
 .nav-item {
   border: 0;
   background: transparent;
-  color: #aeb8cc;
+  color: #334155;
   padding: 13px 14px;
   border-radius: 9px;
   text-align: left;
@@ -97,8 +97,8 @@ button {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: white;
+  background: rgba(0, 0, 0, 0.05);
+  color: #0f172a;
 }
 
 .nav-item.active {
@@ -117,8 +117,8 @@ button {
 }
 
 .system-status {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #e3e7ef;
+  background: #f8f9fc;
   border-radius: 10px;
   padding: 12px;
   display: flex;
@@ -789,6 +789,12 @@ button {
   padding: 13px 15px;
   border-bottom: 1px solid #edf0f5;
   font-size: 11px;
+  align-items: center;
+}
+
+/* Extended grid for tables with action/download columns */
+.report-table--with-actions .table-row {
+  grid-template-columns: 1.8fr 1fr 0.6fr 0.6fr 1fr 0.8fr 1.6fr;
 }
 
 .table-row:last-child {
@@ -807,6 +813,87 @@ button {
 
 .warning-text {
   color: #d97706;
+}
+
+/* ── PDF Export Buttons ── */
+
+.pdf-export-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.25);
+  white-space: nowrap;
+}
+
+.pdf-export-all-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(30, 58, 138, 0.4);
+  background: linear-gradient(135deg, #1e40af, #60a5fa);
+}
+
+.pdf-export-all-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.2);
+}
+
+/* Per-row PDF action buttons */
+.pdf-actions-cell {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.pdf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 9px;
+  border: none;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.pdf-btn--transcript {
+  background: linear-gradient(135deg, #eef2ff, #dbeafe);
+  color: #1e3a8a;
+  border: 1px solid #c7d2fe;
+}
+
+.pdf-btn--transcript:hover {
+  background: linear-gradient(135deg, #c7d2fe, #bfdbfe);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(30, 58, 138, 0.18);
+}
+
+.pdf-btn--summary {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.pdf-btn--summary:hover {
+  background: linear-gradient(135deg, #a7f3d0, #6ee7b7);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(6, 95, 70, 0.18);
+}
+
+.pdf-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 /* SETTINGS */

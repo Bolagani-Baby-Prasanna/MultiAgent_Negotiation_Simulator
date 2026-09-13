@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { scenarioTemplates } from "./data";
 import type { CompletedReport, ScenarioTemplate } from "./types";
 import { NegotiationArena } from "./components/NegotiationArena/NegotiationArena";
+import { generateTranscriptPDF, generateSummaryReportPDF, generateAllReportsPDF } from "./utils/pdfExport";
 import "./App.css";
 
 type Agent = {
@@ -1061,7 +1062,7 @@ function Reports({ reportsList }: { reportsList: CompletedReport[] }) {
     <div className="page-content">
       <section className="welcome-section">
         <div>
-          <h2>Reports & Analytics</h2>
+          <h2>Reports &amp; Analytics</h2>
           <p>Review completed negotiation performance, audit histories and optimization savings.</p>
         </div>
 
@@ -1104,9 +1105,18 @@ function Reports({ reportsList }: { reportsList: CompletedReport[] }) {
             <h3>Negotiation Performance Log</h3>
             <p>Historical simulation outcomes and deal summaries</p>
           </div>
+          {reportsList.length > 0 && (
+            <button
+              className="pdf-export-all-btn"
+              onClick={() => generateAllReportsPDF(reportsList)}
+              title="Download all sessions as a consolidated PDF report"
+            >
+              📥 Export All as PDF
+            </button>
+          )}
         </div>
 
-        <div className="report-table">
+        <div className="report-table report-table--with-actions">
           <div className="table-row table-header">
             <span>Scenario</span>
             <span>Category</span>
@@ -1114,6 +1124,7 @@ function Reports({ reportsList }: { reportsList: CompletedReport[] }) {
             <span>Rounds</span>
             <span>Final Offer</span>
             <span>Outcome</span>
+            <span>Downloads</span>
           </div>
 
           {reportsList.map((rep) => (
@@ -1133,6 +1144,22 @@ function Reports({ reportsList }: { reportsList: CompletedReport[] }) {
                 }
               >
                 {rep.outcome === "Successful" ? "✓ Agreed" : "✕ No Deal"}
+              </span>
+              <span className="pdf-actions-cell">
+                <button
+                  className="pdf-btn pdf-btn--transcript"
+                  onClick={() => generateTranscriptPDF(rep)}
+                  title="Download negotiation transcript as PDF"
+                >
+                  📄 Transcript
+                </button>
+                <button
+                  className="pdf-btn pdf-btn--summary"
+                  onClick={() => generateSummaryReportPDF(rep)}
+                  title="Download summary report as PDF"
+                >
+                  📊 Summary
+                </button>
               </span>
             </div>
           ))}

@@ -478,8 +478,7 @@ def negotiation_outcome(request: AgentTurnRequest):
         return JSONResponse(
             status_code=400,
             content={"error": str(e)}
-        }
-
+        )
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 4000))
     uvicorn.run(app, host="0.0.0.0", port=port)
