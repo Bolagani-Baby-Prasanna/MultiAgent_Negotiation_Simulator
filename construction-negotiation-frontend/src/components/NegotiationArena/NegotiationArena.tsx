@@ -626,17 +626,6 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
         />
       )}
 
-      {/* Human Participant Interactive Move Tray (when it's human's turn) */}
-      {isHumanTurn && (
-        <HumanInputTray
-          humanAgent={humanAgentConfig}
-          state={state}
-          loading={loading}
-          evaluations={evaluations}
-          onSubmitTurn={handleHumanTurnSubmit}
-        />
-      )}
-
       {error && <p className="test-result error">{error}</p>}
 
       {showOutcome && state && state.status !== "active" ? (
@@ -674,6 +663,17 @@ ${reasoning[i] ? `- **Agent Reasoning:** *"${reasoning[i]}"*` : ""}
             evaluations={evaluations}
           />
         </div>
+      )}
+
+      {/* Human Participant Interactive Move Tray (when it's human's turn) */}
+      {isHumanTurn && (
+        <HumanInputTray
+          humanAgent={humanAgentConfig}
+          state={state}
+          loading={loading}
+          evaluations={evaluations}
+          onSubmitTurn={handleHumanTurnSubmit}
+        />
       )}
     </div>
   );
